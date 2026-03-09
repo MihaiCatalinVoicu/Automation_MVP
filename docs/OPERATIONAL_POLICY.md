@@ -11,6 +11,17 @@ Profiles are enforced server-side, not only advisory:
 
 Policy events: `policy_validation_passed`, `policy_escalation_required`, `policy_auto_escalation`.
 
+## Test matrix
+
+To prove enforcement (not just "looks correct"):
+
+```bash
+python tests/test_policy_enforcement.py         # unit tests (policy engine)
+python tests/test_policy_enforcement.py --api   # + API submit + events
+```
+
+Output: PASS/FAIL per rule. Covers: safe_docs rejects, safe_readonly checks, needs_approval_for_code, premium_on_repeat_failures, risk_level, and API events (`policy_validation_passed`, `run_created`).
+
 ## Validated flow (as of 2026-03)
 
 - `RETRY_SAFE` end-to-end via Telegram
