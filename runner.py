@@ -17,9 +17,11 @@ from db import (
     get_run,
     insert_event,
     list_events,
+    update_run_routing,
     update_run_status,
 )
 from policies import classify_command
+from policy_engine import should_auto_escalate_to_premium
 from repo_registry import RepoRegistry, RepoRegistryError
 
 REPEAT_FAILURE_THRESHOLD = int(os.getenv("REPEAT_FAILURE_THRESHOLD", "3"))
@@ -95,6 +97,21 @@ def _run_pipeline(run_id: str) -> None:
 
         failure_count = count_failures_for_command(run_id, resolved_cmd)
         if failure_count >= REPEAT_FAILURE_THRESHOLD:
+            if should_auto_escalate_to_premium(repo_cfg):
+                routing["planner_agent"] = "premium"
+                routing["reviewer_agent"] = "premium"
+                update_run_routing(run_id, routing)
+                insert_event(
+                    run_id,
+                    "policy_auto_escalation",
+                    {
+                        "reason": "premium_on_repeat_failures",
+                        "failed_command": command,
+                        "repeat_count": failure_count,
+                    },
+                )
+                update_run_status(run_id, "RETRY_PENDING")
+                return
             approval_summary = {
                 "reason": "repeat_failure",
                 "failed_command": command,

@@ -1,5 +1,16 @@
 # Operational Policy
 
+## Enforcement (policy engine)
+
+Profiles are enforced server-side, not only advisory:
+
+- **safe_docs**: Blocks tasks whose goal mentions forbidden scope (scoring, strategy, ingest, src/, etc.). Allows only docs/README/templates.
+- **safe_readonly**: Same forbidden-scope check; checks must be read-only (py_compile, status/preflight scripts).
+- **needs_approval_for_code**: Non-docs tasks require pre-execution approval (Telegram Allow/Abort) before executor runs.
+- **premium_on_repeat_failures**: After repeat-failure threshold, auto-escalates to premium (no approval UI); applies ASK_PREMIUM logic directly.
+
+Policy events: `policy_validation_passed`, `policy_escalation_required`, `policy_auto_escalation`.
+
 ## Validated flow (as of 2026-03)
 
 - `RETRY_SAFE` end-to-end via Telegram
