@@ -1,0 +1,36 @@
+{
+  "name": "crypto_phaseb_riskoff",
+  "description": "Replay + cost sensitivity + concentration for TREND_STRONG,RISK_OFF",
+  "commands": [
+    {
+      "id": "replay_riskoff",
+      "cmd": ".venv/bin/python scripts/portfolio_replay.py --data-dir {{run_dir}} --ml-file ml_events.csv --outcomes-file outcomes_hs_-0.02.csv --regime-file regime_assignments.csv --allow-regimes TREND_STRONG,RISK_OFF --allow-setups Breakout --cooldown-hours 24 --cost-bps 30 --max-positions 1 --from-date 2024-09-10 --to-date 2025-01-01 --write-executed-trades"
+    },
+    {
+      "id": "cost_sensitivity",
+      "cmd": ".venv/bin/python scripts/cost_sensitivity.py --data-dir {{run_dir}} --executed-trades"
+    },
+    {
+      "id": "concentration",
+      "cmd": ".venv/bin/python scripts/concentration_check.py --data-dir {{run_dir}} --cost-bps 30"
+    }
+  ],
+  "extractors": [
+    {"source": "replay_riskoff", "metric": "profit_factor", "regex": "profit_factor:\\s+([0-9.]+)"},
+    {"source": "replay_riskoff", "metric": "total_return_pct", "regex": "total_return:\\s+([0-9.\\-]+)%"},
+    {"source": "replay_riskoff", "metric": "max_drawdown_pct", "regex": "max_drawdown:\\s+([0-9.\\-]+)%"},
+    {"source": "cost_sensitivity", "metric": "breakeven_bps", "regex": "Breakeven cost:\\s+([0-9.]+)\\s+bps"},
+    {"source": "concentration", "metric": "top3_share_pct", "regex": "Top-3 symbols share:\\s+([0-9.]+)%"},
+    {"source": "concentration", "metric": "top5_trades_pct", "regex": "Top-5 trades contribution:\\s+([0-9.]+)%"}
+  ],
+  "rules": [
+    {"metric": "profit_factor", "op": ">=", "value": 1.3, "label": "PF acceptable"},
+    {"metric": "max_drawdown_pct", "op": ">=", "value": -15.0, "label": "DD acceptable"},
+    {"metric": "breakeven_bps", "op": ">=", "value": 80, "label": "Cost buffer strong"},
+    {"metric": "top3_share_pct", "op": "<=", "value": 80, "label": "Concentration acceptable", "warn_only": true}
+  ],
+  "verdict_logic": {
+    "promote_if_all_pass": true,
+    "warn_if_any_fail": true
+  }
+}

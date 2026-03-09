@@ -33,6 +33,10 @@ class TaskCreate(BaseModel):
     metadata: Dict[str, str] = Field(default_factory=dict)
     approval_policy: ApprovalPolicy = Field(default_factory=ApprovalPolicy)
 
+    # validation_battery only: recipe path + run_context (run_dir required)
+    recipe: Optional[str] = None
+    run_context: Optional[Dict[str, str]] = None
+
 
 class RunResponse(BaseModel):
     run_id: str

@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import time
+from pathlib import Path
 from typing import Tuple
 
 from approval_service import create_approval
@@ -22,7 +23,10 @@ from db import (
 )
 from policies import classify_command
 from policy_engine import should_auto_escalate_to_premium
+from recipe_runner import run_validation_battery
 from repo_registry import RepoRegistry, RepoRegistryError
+
+AUTOMATION_ROOT = Path(__file__).resolve().parent
 
 REPEAT_FAILURE_THRESHOLD = int(os.getenv("REPEAT_FAILURE_THRESHOLD", "3"))
 EXECUTION_MODE = os.getenv("EXECUTION_MODE", "simulate")
@@ -42,6 +46,52 @@ def run_pipeline(run_id: str, worker_id: str) -> None:
         clear_execution_owner(run_id)
 
 
+def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
+    recipe = task.get("recipe") or (task.get("metadata") or {}).get("recipe")
+    run_context = task.get("run_context") or {}
+    run_dir = run_context.get("run_dir") or (task.get("metadata") or {}).get("run_dir")
+    if not recipe or not run_dir:
+        update_run_status(run_id, "FAILED")
+        insert_event(
+            run_id,
+            "validation_battery_config_error",
+            {"error": "recipe and run_dir (in run_context) required"},
+        )
+        return
+
+    context = {"run_dir": run_dir, "cwd": repo_path}
+    output_dir = AUTOMATION_ROOT / "data" / "validation_artifacts" / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        summary = run_validation_battery(
+            recipe,
+            context,
+            output_dir,
+            base_path=AUTOMATION_ROOT,
+        )
+    except Exception as exc:
+        update_run_status(run_id, "FAILED")
+        insert_event(
+            run_id,
+            "validation_battery_failed",
+            {"error": str(exc)},
+        )
+        return
+
+    insert_event(
+        run_id,
+        "validation_battery_completed",
+        {
+            "verdict": summary["verdict"],
+            "metrics": summary.get("metrics", {}),
+        },
+    )
+    status = "COMPLETED" if summary["verdict"] != "REJECT" else "FAILED"
+    update_run_status(run_id, status)
+    insert_event(run_id, "run_completed", {"message": f"Validation battery: {summary['verdict']}"})
+
+
 def _run_pipeline(run_id: str) -> None:
     run = get_run(run_id)
     if not run:
@@ -56,6 +106,11 @@ def _run_pipeline(run_id: str) -> None:
     allowed_prefixes = repo_cfg.get("allowed_check_prefixes", [])
 
     insert_event(run_id, "run_started", {"routing": routing, "repo_path": repo_path})
+
+    task_type = (task.get("task_type") or "").lower()
+    if task_type == "validation_battery":
+        _run_validation_battery(run_id, task, repo_path)
+        return
 
     planner = routing.get("planner_agent", "none")
     executor = routing.get("executor_agent", "composer")

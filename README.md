@@ -121,6 +121,33 @@ See `docs/OPERATIONAL_POLICY.md` for:
 
 Use `templates/safe_repo_task.json` for low-risk tasks (docs, read-only tooling, preflight).
 
+## Validation battery (crypto Phase B)
+
+Task type `validation_battery` runs a recipe of commands (replay, cost sensitivity, concentration),
+extracts metrics, evaluates rules, outputs summary.json and verdict (PROMOTE/WARN/REJECT).
+
+### Dry-run (standalone)
+From automation-mvp root:
+```bash
+python recipe_runner.py recipes/crypto_phaseb_riskoff.json /path/to/crypto-bot/data/batch/run_top50_xxx
+```
+Or: `python -m recipe_runner recipes/crypto_phaseb_riskoff.json /path/to/run`
+Output: `data/validation_artifacts/<run_name>/` with `command_logs/`, `summary.json`, `verdict.txt`.
+
+### Via API
+```bash
+curl -X POST "http://127.0.0.1:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo": "crypto-bot",
+    "goal": "Validate Phase B TREND_STRONG,RISK_OFF",
+    "task_type": "validation_battery",
+    "recipe": "recipes/crypto_phaseb_riskoff.json",
+    "run_context": {"run_dir": "/root/crypto-bot-git/data/batch/run_top50_20260308_1551"}
+  }'
+```
+Worker executes the recipe in the crypto-bot repo; artifacts go to `data/validation_artifacts/<run_id>/`.
+
 ## Limits of this MVP
 - no queue broker yet
 - no webhook deployment yet

@@ -1,0 +1,3 @@
+﻿# Approval Test
+
+AUTOMATION_MVP_APPROVAL_OK
