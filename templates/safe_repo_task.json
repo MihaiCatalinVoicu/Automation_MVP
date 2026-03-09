@@ -1,0 +1,18 @@
+{
+  "repo": "stocks-bot",
+  "goal": "Add a read-only utility script that [describe safe task]. Do not modify strategy, scoring, ingest, or configs.",
+  "branch": "auto/safe-helper-name",
+  "task_type": "tooling",
+  "constraints": [
+    "read-only utility",
+    "do not modify src strategy logic",
+    "do not modify scoring, ingest, or configs",
+    "touch only scripts/ and optionally README.md",
+    "no dependency changes"
+  ],
+  "checks": [
+    "python -m py_compile scripts/your_script.py",
+    "python scripts/your_script.py"
+  ],
+  "preferred_executor": "composer"
+}

@@ -1,0 +1,38 @@
+{
+  "automation-mvp": {
+    "path": "D:\\automation-mvp",
+    "default_branch": "main",
+    "allow_create_branch": true,
+    "skip_git_prep": true,
+    "python_bin": "D:\\automation-mvp\\.venv\\Scripts\\python.exe",
+    "allowed_check_prefixes": [
+      "python ",
+      "py ",
+      "git status",
+      "git diff"
+    ]
+  },
+  "stocks-bot": {
+    "path": "D:\\stocks-bot",
+    "default_branch": "master",
+    "allow_create_branch": true,
+    "profiles": ["safe_readonly", "safe_docs"],
+    "allowed_check_prefixes": [
+      "python ",
+      "py ",
+      "git status",
+      "git diff"
+    ]
+  },
+  "crypto-bot": {
+    "path": "D:\\crypto-bot",
+    "default_branch": "main",
+    "allow_create_branch": true,
+    "allowed_check_prefixes": [
+      "python ",
+      "py ",
+      "git status",
+      "git diff"
+    ]
+  }
+}
