@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from db import init_db
@@ -65,7 +66,45 @@ def _render_entry(item: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_registry(title: str, rows: list[dict]) -> str:
+def _load_audit_section(repo_name: str | None = None) -> list[str]:
+    audit_dir = ROOT / "data" / "registry_audits"
+    if not audit_dir.exists():
+        return []
+    targets = []
+    if repo_name:
+        path = audit_dir / f"{repo_name}_registry_audit.json"
+        if path.exists():
+            targets.append(path)
+    else:
+        targets.extend(sorted(audit_dir.glob("*_registry_audit.json")))
+    if not targets:
+        return []
+
+    lines = ["## Runtime Audit Findings", ""]
+    for path in targets:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        summary = payload.get("summary", {})
+        lines.append(f"### `{payload.get('repo', path.stem)}`")
+        lines.append("")
+        lines.append(f"- Unmapped live logic: {summary.get('unmapped_count', 0)}")
+        lines.append(f"- Shadow/duplicate logic: {summary.get('shadow_or_duplicate_count', 0)}")
+        lines.append(f"- Dead registry links: {summary.get('dead_link_count', 0)}")
+        for key, title in [
+            ("unmapped_live_logic", "Unmapped"),
+            ("shadow_or_duplicate_logic", "Shadow/Duplicate"),
+            ("dead_registry_links", "Dead links"),
+        ]:
+            findings = payload.get(key, [])[:5]
+            if findings:
+                lines.append(f"- {title}: " + ", ".join(f"`{item.get('relative_path', '?')}`" for item in findings))
+        lines.append("")
+    return lines
+
+
+def _render_registry(title: str, rows: list[dict], repo_name: str | None = None) -> str:
     lines = [f"# {title}", "", f"Generated from central strategy registry in `{ROOT}`.", ""]
     grouped: dict[str, list[dict]] = {}
     for row in rows:
@@ -74,6 +113,9 @@ def _render_registry(title: str, rows: list[dict]) -> str:
         lines.extend([f"## {category}", ""])
         for row in sorted(grouped[category], key=lambda x: x["id"]):
             lines.append(_render_entry(row))
+    audit_lines = _load_audit_section(repo_name)
+    if audit_lines:
+        lines.extend(audit_lines)
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -92,11 +134,11 @@ def main() -> int:
     auto_docs.mkdir(parents=True, exist_ok=True)
 
     (auto_docs / "STRATEGY_REGISTRY.md").write_text(
-        _render_registry("Strategy Registry", all_rows),
+        _render_registry("Strategy Registry", all_rows, None),
         encoding="utf-8",
     )
     (auto_docs / "SHADOW_LOGIC_AUDIT.md").write_text(
-        _render_registry("Shadow Logic Audit", _shadow_rows(all_rows)),
+        _render_registry("Shadow Logic Audit", _shadow_rows(all_rows), None),
         encoding="utf-8",
     )
 
@@ -109,7 +151,7 @@ def main() -> int:
         docs_dir = Path(repo_cfg["path"]) / "docs"
         docs_dir.mkdir(parents=True, exist_ok=True)
         repo_rows = [r for r in all_rows if r["repo"] in {repo_name, "shared"}]
-        (docs_dir / filename).write_text(_render_registry(title, repo_rows), encoding="utf-8")
+        (docs_dir / filename).write_text(_render_registry(title, repo_rows, repo_name), encoding="utf-8")
 
     print("Generated registry docs.")
     return 0

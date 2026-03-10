@@ -15,7 +15,7 @@ Generated from central strategy registry in `D:\automation-mvp`.
 - Operational status: shadow
 - Verdict: REMOVE
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.291624+00:00
+- Last reviewed: 2026-03-10T14:48:23.078048+00:00
 - Tags: logging, decision_log, shadow
 
 Files:
@@ -45,7 +45,7 @@ Latest version:
 - Operational status: shadow
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.246308+00:00
+- Last reviewed: 2026-03-10T14:48:23.034128+00:00
 - Tags: pullback, entry, setup
 - Notes: Exists in multiple forms (`Pullback`, `PullbackV2`) and needs consolidation.
 
@@ -76,7 +76,7 @@ Latest version:
 - Operational status: shadow
 - Verdict: FREEZE
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.338237+00:00
+- Last reviewed: 2026-03-10T14:48:23.121222+00:00
 - Tags: legacy, ideas, sim, eval, shadow
 
 Files:
@@ -92,3 +92,21 @@ Watchlist:
 
 Latest version:
 - `v1`: Seed import from current repo state (FREEZE)
+
+## Runtime Audit Findings
+
+### `crypto-bot`
+
+- Unmapped live logic: 69
+- Shadow/duplicate logic: 11
+- Dead registry links: 0
+- Unmapped: `core/__init__.py`, `core/exit_engine.py`, `core/features.py`, `core/heartbeat.py`, `core/model.py`
+- Shadow/Duplicate: `core/decision_log.py`, `core/decision_log.py`, `core/ideas.py`, `core/ml_risk.py`, `core/ml_risk.py`
+
+### `stocks-bot`
+
+- Unmapped live logic: 73
+- Shadow/duplicate logic: 3
+- Dead registry links: 0
+- Unmapped: `src/ingest/__init__.py`, `src/ingest/contracts.py`, `src/ingest/form4_downloader.py`, `src/ingest/form4_parser.py`, `src/ingest/health_check.py`
+- Shadow/Duplicate: `src/eval/eval_job.py`, `src/ideas/idea_job.py`, `src/sim/sim_job.py`

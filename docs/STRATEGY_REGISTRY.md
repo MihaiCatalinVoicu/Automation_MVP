@@ -15,7 +15,7 @@ Generated from central strategy registry in `D:\automation-mvp`.
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.274023+00:00
+- Last reviewed: 2026-03-10T14:48:23.059921+00:00
 - Tags: cost, slippage, fees, breakeven
 
 Files:
@@ -44,7 +44,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.288079+00:00
+- Last reviewed: 2026-03-10T14:48:23.074839+00:00
 - Tags: ml, overlay, risk_gate, p_highrisk
 - Notes: Current state has overlapping ML paths and should be audited before expansion.
 
@@ -76,7 +76,7 @@ Latest version:
 - Operational status: shadow
 - Verdict: REMOVE
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.291624+00:00
+- Last reviewed: 2026-03-10T14:48:23.078048+00:00
 - Tags: logging, decision_log, shadow
 
 Files:
@@ -106,7 +106,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.260057+00:00
+- Last reviewed: 2026-03-10T14:48:23.046925+00:00
 - Tags: atr, volatility, quality, max_atr
 
 Files:
@@ -134,7 +134,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.298579+00:00
+- Last reviewed: 2026-03-10T14:48:23.084308+00:00
 - Tags: candidate, omb, roles, strict_cluster
 
 Files:
@@ -161,7 +161,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.302428+00:00
+- Last reviewed: 2026-03-10T14:48:23.087413+00:00
 - Tags: risk_gate, liquidity, spread, baseline
 
 Files:
@@ -189,7 +189,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.306282+00:00
+- Last reviewed: 2026-03-10T14:48:23.090756+00:00
 - Tags: ranker, scoring, ideas, baseline
 
 Files:
@@ -218,7 +218,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.253587+00:00
+- Last reviewed: 2026-03-10T14:48:23.040584+00:00
 - Tags: btc, regime, trend_strong, filter
 
 Files:
@@ -247,7 +247,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.257008+00:00
+- Last reviewed: 2026-03-10T14:48:23.043786+00:00
 - Tags: btc, risk_off, ema200, filter
 
 Files:
@@ -266,6 +266,104 @@ Watchlist:
 Latest version:
 - `v1`: Seed import from current repo state (WATCH)
 
+## research_family
+
+### `breakout_momentum`
+
+- Name: Breakout Momentum family
+- Repo: crypto-bot
+- Category: research_family
+- Purpose: Month-1 research family for continuation breakouts on 4h Top-50 data.
+- Hypothesis: Simple breakout continuation on 4h may survive costs if signal density and concentration are acceptable.
+- Status: functional (75%)
+- Operational status: research_active
+- Verdict: WATCH
+- Owner: mihai
+- Last reviewed: 2026-03-10T14:48:23.125468+00:00
+- Tags: month1, research, breakout, momentum, 4h
+
+Files:
+- `core/ideas.py` [implementation]
+- `scripts/run_cohort_research.py` [orchestration]
+- `configs/discovery_profiles_breakout_momentum.json` [configuration]
+- `scripts/profile_discovery.py` [validation]
+
+Metrics / thresholds:
+- `candidate_count` target `>=1` rule `shadow-screen`
+- `window_passes` target `>=1` rule `shadow-screen`
+- `top3_share_pct` target `<=70` rule `robustness`
+
+Watchlist:
+- `candidate_count` trigger `candidate_count < 1` cadence `daily` -> `REJECT`
+- `window_passes` trigger `window_passes < 1` cadence `daily` -> `WATCH`
+
+Latest version:
+- `v1`: Seed import from current repo state (WATCH)
+
+### `cross_sectional_momentum`
+
+- Name: Cross-sectional Momentum family
+- Repo: crypto-bot
+- Category: research_family
+- Purpose: Month-1 research family for ranking Top-50 coins by relative strength and replaying the strongest candidates.
+- Hypothesis: Relative-strength leadership on 4h may persist long enough to produce repeatable edge when ranked cross-sectionally.
+- Status: functional (75%)
+- Operational status: research_active
+- Verdict: WATCH
+- Owner: mihai
+- Last reviewed: 2026-03-10T14:48:23.132055+00:00
+- Tags: month1, research, cross_sectional, momentum, top50
+
+Files:
+- `scripts/generate_cross_sectional_batch.py` [implementation]
+- `scripts/run_cohort_research.py` [orchestration]
+- `configs/discovery_profiles_cross_sectional_momentum.json` [configuration]
+- `scripts/profile_discovery.py` [validation]
+
+Metrics / thresholds:
+- `candidate_count` target `>=1` rule `shadow-screen`
+- `window_passes` target `>=1` rule `shadow-screen`
+- `top3_share_pct` target `<=70` rule `robustness`
+
+Watchlist:
+- `candidate_count` trigger `candidate_count < 1` cadence `daily` -> `REJECT`
+- `window_passes` trigger `window_passes < 1` cadence `daily` -> `WATCH`
+
+Latest version:
+- `v1`: Seed import from current repo state (WATCH)
+
+### `spike_mean_reversion`
+
+- Name: Spike Mean Reversion family
+- Repo: crypto-bot
+- Category: research_family
+- Purpose: Month-1 research family for long mean reversion after downside 4h liquidation-like flushes.
+- Hypothesis: Oversold high-volume downside spikes may mean-revert over the next 1-3 bars on 4h data.
+- Status: functional (75%)
+- Operational status: research_active
+- Verdict: WATCH
+- Owner: mihai
+- Last reviewed: 2026-03-10T14:48:23.128890+00:00
+- Tags: month1, research, mean_reversion, spike, 4h
+
+Files:
+- `core/ideas.py` [implementation]
+- `scripts/run_cohort_research.py` [orchestration]
+- `configs/discovery_profiles_spike_mean_reversion.json` [configuration]
+- `scripts/profile_discovery.py` [validation]
+
+Metrics / thresholds:
+- `candidate_count` target `>=1` rule `shadow-screen`
+- `window_passes` target `>=1` rule `shadow-screen`
+- `max_drawdown_pct` target `>=-25` rule `early-screen`
+
+Watchlist:
+- `candidate_count` trigger `candidate_count < 1` cadence `daily` -> `REJECT`
+- `window_passes` trigger `window_passes < 1` cadence `daily` -> `WATCH`
+
+Latest version:
+- `v1`: Seed import from current repo state (WATCH)
+
 ## risk_sizing
 
 ### `cooldown_logic`
@@ -279,7 +377,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.267491+00:00
+- Last reviewed: 2026-03-10T14:48:23.053357+00:00
 - Tags: cooldown, reentry, clustering
 
 Files:
@@ -306,7 +404,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.270733+00:00
+- Last reviewed: 2026-03-10T14:48:23.056494+00:00
 - Tags: max_positions, portfolio, overlap
 
 Files:
@@ -333,7 +431,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.264064+00:00
+- Last reviewed: 2026-03-10T14:48:23.050141+00:00
 - Tags: sizing, risk_per_trade, exposure
 
 Files:
@@ -362,7 +460,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.309632+00:00
+- Last reviewed: 2026-03-10T14:48:23.094097+00:00
 - Tags: strategy_v1, paper, runtime
 
 Files:
@@ -391,7 +489,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.242296+00:00
+- Last reviewed: 2026-03-10T14:48:23.029326+00:00
 - Tags: breakout, entry, setup, trend
 
 Files:
@@ -421,7 +519,7 @@ Latest version:
 - Operational status: shadow
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.246308+00:00
+- Last reviewed: 2026-03-10T14:48:23.034128+00:00
 - Tags: pullback, entry, setup
 - Notes: Exists in multiple forms (`Pullback`, `PullbackV2`) and needs consolidation.
 
@@ -450,7 +548,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.250126+00:00
+- Last reviewed: 2026-03-10T14:48:23.037455+00:00
 - Tags: pullbackv2, pullback, paper-engine
 
 Files:
@@ -479,7 +577,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.294921+00:00
+- Last reviewed: 2026-03-10T14:48:23.081277+00:00
 - Tags: sec, form4, ingest, events
 
 Files:
@@ -509,7 +607,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.331385+00:00
+- Last reviewed: 2026-03-10T14:48:23.115081+00:00
 - Tags: c10, candidate_audit, paper_eval
 
 Files:
@@ -535,7 +633,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.324190+00:00
+- Last reviewed: 2026-03-10T14:48:23.107594+00:00
 - Tags: cohort_baseline, validation, equal_weight
 
 Files:
@@ -561,7 +659,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.277349+00:00
+- Last reviewed: 2026-03-10T14:48:23.063344+00:00
 - Tags: concentration, top3, outliers, robustness
 
 Files:
@@ -588,7 +686,7 @@ Latest version:
 - Operational status: shadow
 - Verdict: FREEZE
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.338237+00:00
+- Last reviewed: 2026-03-10T14:48:23.121222+00:00
 - Tags: legacy, ideas, sim, eval, shadow
 
 Files:
@@ -616,7 +714,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.284628+00:00
+- Last reviewed: 2026-03-10T14:48:23.071121+00:00
 - Tags: micro_autoresearch, search, offline, sweep
 
 Files:
@@ -645,7 +743,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.334917+00:00
+- Last reviewed: 2026-03-10T14:48:23.118262+00:00
 - Tags: paper_eval, accounting, forward
 
 Files:
@@ -672,7 +770,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.280940+00:00
+- Last reviewed: 2026-03-10T14:48:23.066415+00:00
 - Tags: validation_battery, recipe_runner, verdict
 
 Files:
@@ -700,7 +798,7 @@ Latest version:
 - Operational status: active
 - Verdict: KEEP
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.327559+00:00
+- Last reviewed: 2026-03-10T14:48:23.111083+00:00
 - Tags: winner_sensitivity, validation, costs
 
 Files:
@@ -728,7 +826,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.320712+00:00
+- Last reviewed: 2026-03-10T14:48:23.104380+00:00
 - Tags: a20, premium, benchmark
 
 Files:
@@ -755,7 +853,7 @@ Latest version:
 - Operational status: supporting
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.317081+00:00
+- Last reviewed: 2026-03-10T14:48:23.100939+00:00
 - Tags: b20, winner, cohort, benchmark
 
 Files:
@@ -782,7 +880,7 @@ Latest version:
 - Operational status: active
 - Verdict: WATCH
 - Owner: mihai
-- Last reviewed: 2026-03-10T10:41:52.313407+00:00
+- Last reviewed: 2026-03-10T14:48:23.097790+00:00
 - Tags: c10, winner, cohort, paper
 
 Files:
@@ -800,3 +898,21 @@ Watchlist:
 
 Latest version:
 - `v1`: Seed import from current repo state (WATCH)
+
+## Runtime Audit Findings
+
+### `crypto-bot`
+
+- Unmapped live logic: 69
+- Shadow/duplicate logic: 11
+- Dead registry links: 0
+- Unmapped: `core/__init__.py`, `core/exit_engine.py`, `core/features.py`, `core/heartbeat.py`, `core/model.py`
+- Shadow/Duplicate: `core/decision_log.py`, `core/decision_log.py`, `core/ideas.py`, `core/ml_risk.py`, `core/ml_risk.py`
+
+### `stocks-bot`
+
+- Unmapped live logic: 73
+- Shadow/duplicate logic: 3
+- Dead registry links: 0
+- Unmapped: `src/ingest/__init__.py`, `src/ingest/contracts.py`, `src/ingest/form4_downloader.py`, `src/ingest/form4_parser.py`, `src/ingest/health_check.py`
+- Shadow/Duplicate: `src/eval/eval_job.py`, `src/ideas/idea_job.py`, `src/sim/sim_job.py`

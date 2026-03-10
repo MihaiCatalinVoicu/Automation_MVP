@@ -221,6 +221,67 @@ def init_db() -> None:
                 FOREIGN KEY(strategy_id) REFERENCES strategies(id)
             );
 
+            CREATE TABLE IF NOT EXISTS strategy_reviews (
+                id TEXT PRIMARY KEY,
+                strategy_id TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                review_kind TEXT NOT NULL,
+                cadence TEXT NOT NULL,
+                status TEXT NOT NULL,
+                previous_verdict TEXT NOT NULL,
+                recommended_verdict TEXT NOT NULL,
+                recommended_operational_status TEXT NOT NULL,
+                evidence_json TEXT NOT NULL,
+                artifact_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS research_schedules (
+                id TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                strategy_id TEXT NOT NULL,
+                family_name TEXT NOT NULL,
+                recipe_path TEXT NOT NULL,
+                cohort_config_path TEXT NOT NULL,
+                cadence TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                config_json TEXT NOT NULL,
+                artifact_root TEXT NOT NULL,
+                last_materialized_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS schedule_runs (
+                id TEXT PRIMARY KEY,
+                schedule_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                run_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(schedule_id) REFERENCES research_schedules(id),
+                FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS artifact_manifests (
+                id TEXT PRIMARY KEY,
+                schedule_id TEXT,
+                run_id TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                strategy_id TEXT,
+                family_name TEXT,
+                artifact_kind TEXT NOT NULL,
+                artifact_path TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(schedule_id) REFERENCES research_schedules(id),
+                FOREIGN KEY(run_id) REFERENCES runs(id),
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_strategies_repo ON strategies(repo);
             CREATE INDEX IF NOT EXISTS idx_strategies_category ON strategies(category);
             CREATE INDEX IF NOT EXISTS idx_strategy_versions_strategy_id ON strategy_versions(strategy_id);
@@ -228,6 +289,10 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_change_log_strategy_id ON change_log(strategy_id);
             CREATE INDEX IF NOT EXISTS idx_change_log_run_id ON change_log(run_id);
             CREATE INDEX IF NOT EXISTS idx_experiments_strategy_id ON experiments(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_strategy_reviews_strategy_id ON strategy_reviews(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_research_schedules_repo ON research_schedules(repo);
+            CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule_date ON schedule_runs(schedule_id, run_date);
+            CREATE INDEX IF NOT EXISTS idx_artifact_manifests_run_id ON artifact_manifests(run_id);
             """
         )
 

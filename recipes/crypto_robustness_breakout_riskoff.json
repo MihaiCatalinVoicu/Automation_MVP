@@ -1,0 +1,79 @@
+{
+  "name": "crypto_robustness_breakout_riskoff",
+  "description": "Run the breakout risk-off robustness suite and emit a promotion verdict.",
+  "cwd": "{{cwd}}",
+  "commands": [
+    {
+      "id": "robustness_suite",
+      "cmd": "\"{{python_bin}}\" scripts/robustness_suite.py --run-dir \"{{run_dir}}\" --profile breakout_riskoff --output \"{{battery_output_dir}}/robustness_summary.json\""
+    }
+  ],
+  "extractors": [
+    {
+      "source": "robustness_suite",
+      "metric": "window_passes",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.window_passes"
+    },
+    {
+      "source": "robustness_suite",
+      "metric": "cost_passes",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.cost_passes"
+    },
+    {
+      "source": "robustness_suite",
+      "metric": "slip_passes",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.slip_passes"
+    },
+    {
+      "source": "robustness_suite",
+      "metric": "average_profit_factor",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.average_profit_factor"
+    },
+    {
+      "source": "robustness_suite",
+      "metric": "worst_top3_share_pct",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.worst_top3_share_pct"
+    },
+    {
+      "source": "robustness_suite",
+      "metric": "max_cost_passed_bps",
+      "json_file": "{{battery_output_dir}}/robustness_summary.json",
+      "json_path": "summary_metrics.max_cost_passed_bps"
+    }
+  ],
+  "rules": [
+    {
+      "metric": "window_passes",
+      "op": ">=",
+      "value": 2,
+      "label": "Passes minimum windows"
+    },
+    {
+      "metric": "average_profit_factor",
+      "op": ">=",
+      "value": 1.2,
+      "label": "Average PF acceptable"
+    },
+    {
+      "metric": "max_cost_passed_bps",
+      "op": ">=",
+      "value": 40,
+      "label": "Survives cost stress"
+    },
+    {
+      "metric": "worst_top3_share_pct",
+      "op": "<=",
+      "value": 70,
+      "label": "Concentration acceptable",
+      "warn_only": true
+    }
+  ],
+  "verdict_logic": {
+    "promote_if_all_pass": true
+  }
+}

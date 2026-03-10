@@ -138,6 +138,33 @@ Generated docs:
 - `D:\\crypto-bot\\docs\\CRYPTO_STRATEGY_MAP.md`
 - `D:\\stocks-bot\\docs\\STOCKS_STRATEGY_MAP.md`
 
+### Runtime audit
+
+You can audit runtime truth vs. registry links with:
+
+```bash
+python registry_audit.py --repo crypto-bot
+python registry_audit.py --repo stocks-bot
+```
+
+Outputs go to `data/registry_audits/` and include:
+- unmapped live logic
+- shadow/duplicate logic
+- dead registry links
+
+Exit code is non-zero on high-severity audit failures.
+
+### Strategy lifecycle review
+
+Automated watchlist reviews can be run directly:
+
+```bash
+python daily_strategy_review.py --repo crypto-bot
+```
+
+Artifacts go to `data/strategy_reviews/`. The worker also supports task types
+`strategy_review` and `daily_strategy_review` for orchestrated runs.
+
 ## Mandatory cross-reference gate
 
 Non-trivial operational or code-change tasks must resolve to a known registry entry or explicitly propose a new strategy.
@@ -189,6 +216,17 @@ curl -X POST "http://127.0.0.1:8000/runs" \
   }'
 ```
 Worker executes the recipe in the crypto-bot repo; artifacts go to `data/validation_artifacts/<run_id>/`.
+
+### Robustness suite recipe
+
+For multi-window promotion gating around the breakout risk-off profile:
+
+```bash
+python recipe_runner.py recipes/crypto_robustness_breakout_riskoff.json /path/to/crypto-bot/data/batch/run_top50_xxx
+```
+
+This recipe runs `scripts/robustness_suite.py`, reads machine-readable JSON output,
+and emits a validation-battery verdict from `summary_metrics`.
 
 ## Limits of this MVP
 - no queue broker yet

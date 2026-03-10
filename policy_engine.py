@@ -173,6 +173,15 @@ def should_auto_escalate_to_premium(repo_cfg: dict) -> bool:
 
 
 def validate_strategy_reference(repo_cfg: dict, task: dict) -> StrategyPolicyResult:
+    task_type = (task.get("task_type") or "").lower()
+    if task_type in {"registry_audit", "strategy_review", "daily_strategy_review"}:
+        return StrategyPolicyResult(
+            status="passed",
+            reason="internal governance task bypasses strategy_id requirement",
+            decision="ALLOW",
+            resolved_strategy_id=task.get("strategy_id"),
+            resolved_category_id=task.get("category_id"),
+        )
     result: CrossRefResult = preflight_cross_reference(task, repo_cfg)
     if result.decision in {"BLOCK_DUPLICATE", "BLOCK_UNSCOPED_CHANGE", "REQUIRES_NEW_STRATEGY_ENTRY"}:
         return StrategyPolicyResult(

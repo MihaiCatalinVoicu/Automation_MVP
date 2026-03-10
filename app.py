@@ -8,11 +8,14 @@ from fastapi import FastAPI, HTTPException
 
 from approval_service import apply_decision as approval_apply_decision
 from approval_service import create_pre_execution_approval
+from artifact_store import list_artifacts
 from db import get_run, init_db, insert_event, insert_run, list_events
 from models import RunResponse, TaskCreate
 from policies import choose_routing
 from policy_engine import validate_strategy_reference, validate_task
 from repo_registry import RepoRegistry
+from schedule_registry import list_research_schedules, list_schedule_runs, upsert_default_schedules
+from shadow_recommendations import build_shadow_board
 from strategy_registry import create_change_log
 
 load_dotenv()
@@ -23,6 +26,7 @@ app = FastAPI(title="Automation Orchestrator MVP")
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    upsert_default_schedules()
 
 
 @app.get("/health")
@@ -158,3 +162,19 @@ def run_status(run_id: str) -> dict:
         },
         "events": list_events(run_id),
     }
+
+
+@app.get("/research/schedules")
+def research_schedules() -> dict:
+    return {"schedules": list_research_schedules(enabled_only=False), "recent_schedule_runs": list_schedule_runs(limit=50)}
+
+
+@app.get("/research/artifacts")
+def research_artifacts(family_name: str | None = None, limit: int = 50) -> dict:
+    return {"artifacts": list_artifacts(family_name=family_name, limit=limit)}
+
+
+@app.get("/research/shadow-board")
+def research_shadow_board(lookback_days: int = 7) -> dict:
+    out_dir = __import__("pathlib").Path("data") / "shadow_recommendations"
+    return build_shadow_board(out_dir, lookback_days=lookback_days)
