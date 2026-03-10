@@ -1,0 +1,17 @@
+{
+  "repo": "crypto-bot",
+  "goal": "Adjust ATR quality filter validation without changing core entry logic",
+  "branch": "auto/strategy-linked-change",
+  "task_type": "bugfix",
+  "change_kind": "validation_update",
+  "strategy_id": "atr_quality_filter",
+  "category_id": "quality_filter",
+  "constraints": [
+    "do not introduce duplicate logic",
+    "update registry-linked validation only"
+  ],
+  "checks": [
+    "python scripts/portfolio_replay.py --help"
+  ],
+  "preferred_executor": "composer"
+}

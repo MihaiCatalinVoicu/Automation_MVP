@@ -22,9 +22,10 @@ from db import (
     update_run_status,
 )
 from policies import classify_command
-from policy_engine import should_auto_escalate_to_premium
+from policy_engine import should_auto_escalate_to_premium, validate_strategy_reference
 from recipe_runner import run_validation_battery
 from repo_registry import RepoRegistry, RepoRegistryError
+from strategy_registry import add_experiment_result, create_experiment, update_change_log
 
 AUTOMATION_ROOT = Path(__file__).resolve().parent
 
@@ -42,6 +43,7 @@ def run_pipeline(run_id: str, worker_id: str) -> None:
     except Exception as exc:
         update_run_status(run_id, "FAILED")
         insert_event(run_id, "run_failed_exception", {"error": str(exc)})
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"exception": str(exc)})
     finally:
         clear_execution_owner(run_id)
 
@@ -77,8 +79,26 @@ def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
             "validation_battery_failed",
             {"error": str(exc)},
         )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"validation_battery_error": str(exc)})
         return
 
+    experiment_id = create_experiment(
+        strategy_id=task.get("strategy_id"),
+        repo=task.get("repo", "unknown"),
+        name=Path(recipe).stem,
+        hypothesis=task.get("goal", "validation_battery"),
+        run_dir=run_dir,
+        search_space={"recipe": recipe},
+        status=summary["verdict"],
+    )
+    add_experiment_result(
+        experiment_id=experiment_id,
+        strategy_id=task.get("strategy_id"),
+        run_dir=run_dir,
+        source_file=str(output_dir / "summary.json"),
+        result=summary,
+        verdict=summary["verdict"],
+    )
     insert_event(
         run_id,
         "validation_battery_completed",
@@ -89,6 +109,12 @@ def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
     )
     status = "COMPLETED" if summary["verdict"] != "REJECT" else "FAILED"
     update_run_status(run_id, status)
+    update_change_log(
+        run_id=run_id,
+        status="COMPLETED" if status == "COMPLETED" else "FAILED",
+        actual_impact={"validation_battery_verdict": summary["verdict"], "metrics": summary.get("metrics", {})},
+        strategy_id=task.get("strategy_id"),
+    )
     insert_event(run_id, "run_completed", {"message": f"Validation battery: {summary['verdict']}"})
 
 
@@ -106,6 +132,31 @@ def _run_pipeline(run_id: str) -> None:
     allowed_prefixes = repo_cfg.get("allowed_check_prefixes", [])
 
     insert_event(run_id, "run_started", {"routing": routing, "repo_path": repo_path})
+    strategy_result = validate_strategy_reference(repo_cfg, task)
+    if strategy_result.status == "failed":
+        update_run_status(run_id, "FAILED")
+        insert_event(
+            run_id,
+            "strategy_crossref_failed",
+            {
+                "reason": strategy_result.reason,
+                "decision": strategy_result.decision,
+                "candidates": strategy_result.candidates or [],
+            },
+        )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"strategy_crossref_error": strategy_result.reason})
+        return
+    insert_event(
+        run_id,
+        "strategy_crossref_runner_passed",
+        {
+            "decision": strategy_result.decision,
+            "reason": strategy_result.reason,
+            "strategy_id": task.get("strategy_id") or strategy_result.resolved_strategy_id,
+            "category_id": task.get("category_id") or strategy_result.resolved_category_id,
+        },
+    )
+    update_change_log(run_id=run_id, status="RUNNING", strategy_id=task.get("strategy_id") or strategy_result.resolved_strategy_id)
 
     task_type = (task.get("task_type") or "").lower()
     if task_type == "validation_battery":
@@ -184,9 +235,11 @@ def _run_pipeline(run_id: str) -> None:
             "run_failed",
             {"command": command, "stderr": stderr[:1000], "stdout": stdout[:1000]},
         )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"failed_check": command, "stderr": stderr[:500]})
         return
 
     update_run_status(run_id, "COMPLETED")
+    update_change_log(run_id=run_id, status="COMPLETED", actual_impact={"result": "checks_passed"})
     insert_event(run_id, "run_completed", {"message": "All checks passed"})
 
 

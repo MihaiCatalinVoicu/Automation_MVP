@@ -83,6 +83,151 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
             CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id);
             CREATE INDEX IF NOT EXISTS idx_approvals_run_id ON approvals(run_id);
+
+            CREATE TABLE IF NOT EXISTS strategies (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                bot TEXT NOT NULL,
+                category TEXT NOT NULL,
+                purpose TEXT NOT NULL,
+                business_hypothesis TEXT NOT NULL,
+                status_state TEXT NOT NULL,
+                status_pct INTEGER NOT NULL,
+                operational_status TEXT NOT NULL,
+                current_verdict TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                tags_json TEXT NOT NULL,
+                notes TEXT NOT NULL,
+                last_reviewed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                reason_for_change TEXT NOT NULL,
+                metrics_before_json TEXT NOT NULL,
+                metrics_after_json TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                files_changed_json TEXT NOT NULL,
+                reviewed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_components (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                component_name TEXT NOT NULL,
+                component_category TEXT NOT NULL,
+                description TEXT NOT NULL,
+                status_state TEXT NOT NULL,
+                notes TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_file_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                role TEXT NOT NULL,
+                is_shadow INTEGER NOT NULL DEFAULT 0,
+                notes TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                metric_name TEXT NOT NULL,
+                target_value TEXT NOT NULL,
+                threshold_rule TEXT NOT NULL,
+                notes TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                rule_name TEXT NOT NULL,
+                rule_kind TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                rule_config_json TEXT NOT NULL,
+                notes TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id TEXT NOT NULL,
+                metric_name TEXT NOT NULL,
+                trigger_rule TEXT NOT NULL,
+                reevaluation_cadence TEXT NOT NULL,
+                trigger_action TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                notes TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS change_log (
+                id TEXT PRIMARY KEY,
+                strategy_id TEXT,
+                run_id TEXT,
+                repo TEXT NOT NULL,
+                category_id TEXT,
+                change_kind TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                proposed_strategy_name TEXT,
+                requested_by TEXT NOT NULL,
+                status TEXT NOT NULL,
+                file_paths_json TEXT NOT NULL,
+                expected_impact_json TEXT NOT NULL,
+                actual_impact_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id),
+                FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS experiments (
+                id TEXT PRIMARY KEY,
+                strategy_id TEXT,
+                repo TEXT NOT NULL,
+                name TEXT NOT NULL,
+                hypothesis TEXT NOT NULL,
+                run_dir TEXT NOT NULL,
+                search_space_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS experiment_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                experiment_id TEXT,
+                strategy_id TEXT,
+                run_dir TEXT NOT NULL,
+                source_file TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(experiment_id) REFERENCES experiments(id),
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_strategies_repo ON strategies(repo);
+            CREATE INDEX IF NOT EXISTS idx_strategies_category ON strategies(category);
+            CREATE INDEX IF NOT EXISTS idx_strategy_versions_strategy_id ON strategy_versions(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_strategy_file_links_strategy_id ON strategy_file_links(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_change_log_strategy_id ON change_log(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_change_log_run_id ON change_log(run_id);
+            CREATE INDEX IF NOT EXISTS idx_experiments_strategy_id ON experiments(strategy_id);
             """
         )
 

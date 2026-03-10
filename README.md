@@ -121,6 +121,45 @@ See `docs/OPERATIONAL_POLICY.md` for:
 
 Use `templates/safe_repo_task.json` for low-risk tasks (docs, read-only tooling, preflight).
 
+## Central strategy registry
+
+`automation-mvp` is now the canonical source of truth for strategy/concept inventory across repos.
+
+Structured registry storage lives in SQLite and can be seeded/generated with:
+
+```bash
+python seed_strategy_registry.py
+python generate_registry_docs.py
+```
+
+Generated docs:
+- `docs/STRATEGY_REGISTRY.md`
+- `docs/SHADOW_LOGIC_AUDIT.md`
+- `D:\\crypto-bot\\docs\\CRYPTO_STRATEGY_MAP.md`
+- `D:\\stocks-bot\\docs\\STOCKS_STRATEGY_MAP.md`
+
+## Mandatory cross-reference gate
+
+Non-trivial operational or code-change tasks must resolve to a known registry entry or explicitly propose a new strategy.
+
+Required task fields:
+- `strategy_id` or `new_strategy_proposal`
+- optional `category_id`
+- `change_kind`
+
+You can preflight a task manually with:
+
+```bash
+python preflight_crossref.py \
+  --repo crypto-bot \
+  --goal "Tune ATR quality validation without changing core logic" \
+  --change-kind validation_update \
+  --strategy-id atr_quality_filter \
+  --category-id quality_filter
+```
+
+Assistant workflow rules are documented in `docs/ASSISTANT_CROSSREF_WORKFLOW.md`.
+
 ## Validation battery (crypto Phase B)
 
 Task type `validation_battery` runs a recipe of commands (replay, cost sensitivity, concentration),
@@ -142,6 +181,9 @@ curl -X POST "http://127.0.0.1:8000/runs" \
     "repo": "crypto-bot",
     "goal": "Validate Phase B TREND_STRONG,RISK_OFF",
     "task_type": "validation_battery",
+    "change_kind": "validation_run",
+    "strategy_id": "btc_risk_off_filter",
+    "category_id": "regime_filter",
     "recipe": "recipes/crypto_phaseb_riskoff.json",
     "run_context": {"run_dir": "/root/crypto-bot-git/data/batch/run_top50_20260308_1551"}
   }'

@@ -11,6 +11,24 @@ Profiles are enforced server-side, not only advisory:
 
 Policy events: `policy_validation_passed`, `policy_escalation_required`, `policy_auto_escalation`.
 
+## Strategy cross-reference policy
+
+For non-trivial operational or code-change tasks, the task must be linked to the central strategy registry in `automation-mvp`.
+
+Required metadata:
+- `strategy_id` or `new_strategy_proposal`
+- optional `category_id`
+- `change_kind`
+
+Cross-reference gate outcomes:
+- `ALLOW`
+- `ALLOW_WITH_REGISTRY_UPDATE`
+- `REQUIRES_NEW_STRATEGY_ENTRY`
+- `BLOCK_DUPLICATE`
+- `BLOCK_UNSCOPED_CHANGE`
+
+Use `python preflight_crossref.py ...` to resolve the task before submit when needed.
+
 ## Test matrix
 
 To prove enforcement (not just "looks correct"):
