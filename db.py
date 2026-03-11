@@ -282,6 +282,106 @@ def init_db() -> None:
                 FOREIGN KEY(strategy_id) REFERENCES strategies(id)
             );
 
+            CREATE TABLE IF NOT EXISTS runtime_runs (
+                run_id TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                environment TEXT NOT NULL,
+                strategy_id TEXT NOT NULL,
+                family TEXT NOT NULL,
+                variant_id TEXT,
+                profile_id TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                first_event_ts TEXT,
+                last_event_ts TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS raw_lifecycle_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                schema_version TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                event_type TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                environment TEXT NOT NULL,
+                strategy_id TEXT NOT NULL,
+                family TEXT NOT NULL,
+                variant_id TEXT,
+                profile_id TEXT,
+                run_id TEXT NOT NULL,
+                signal_id TEXT NOT NULL,
+                decision_id TEXT,
+                position_id TEXT,
+                symbol TEXT,
+                side TEXT,
+                ts TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                source_file TEXT,
+                source_line INTEGER,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(run_id) REFERENCES runtime_runs(run_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS work_items (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                repo TEXT NOT NULL,
+                strategy_id TEXT,
+                scope_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                progress_pct INTEGER NOT NULL,
+                priority TEXT NOT NULL,
+                phase TEXT,
+                owner TEXT,
+                blocked_by TEXT,
+                deferred_reason TEXT,
+                decision_ref TEXT,
+                source_doc TEXT,
+                source_item_id TEXT,
+                acceptance_criteria TEXT,
+                notes TEXT NOT NULL,
+                target_date TEXT,
+                completed_at TEXT,
+                last_reviewed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(strategy_id) REFERENCES strategies(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS work_item_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                work_item_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                old_status TEXT,
+                new_status TEXT,
+                old_progress_pct INTEGER,
+                new_progress_pct INTEGER,
+                reason TEXT NOT NULL,
+                old_payload_json TEXT NOT NULL,
+                new_payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(work_item_id) REFERENCES work_items(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS runtime_import_state (
+                source_path TEXT PRIMARY KEY,
+                last_line_processed INTEGER NOT NULL DEFAULT 0,
+                last_imported_at TEXT,
+                last_status TEXT,
+                last_error TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS maintenance_job_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_strategies_repo ON strategies(repo);
             CREATE INDEX IF NOT EXISTS idx_strategies_category ON strategies(category);
             CREATE INDEX IF NOT EXISTS idx_strategy_versions_strategy_id ON strategy_versions(strategy_id);
@@ -293,6 +393,138 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_research_schedules_repo ON research_schedules(repo);
             CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule_date ON schedule_runs(schedule_id, run_date);
             CREATE INDEX IF NOT EXISTS idx_artifact_manifests_run_id ON artifact_manifests(run_id);
+            CREATE INDEX IF NOT EXISTS idx_runtime_runs_strategy_id ON runtime_runs(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_runtime_runs_repo_env ON runtime_runs(repo, environment);
+            CREATE INDEX IF NOT EXISTS idx_raw_lifecycle_run_id ON raw_lifecycle_events(run_id);
+            CREATE INDEX IF NOT EXISTS idx_raw_lifecycle_strategy_id ON raw_lifecycle_events(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_raw_lifecycle_signal_id ON raw_lifecycle_events(signal_id);
+            CREATE INDEX IF NOT EXISTS idx_raw_lifecycle_event_type ON raw_lifecycle_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_work_items_repo ON work_items(repo);
+            CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
+            CREATE INDEX IF NOT EXISTS idx_work_items_strategy_id ON work_items(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_work_items_source ON work_items(source_doc, source_item_id);
+            CREATE INDEX IF NOT EXISTS idx_work_item_events_work_item_id ON work_item_events(work_item_id);
+            CREATE INDEX IF NOT EXISTS idx_runtime_import_state_status ON runtime_import_state(last_status);
+            CREATE INDEX IF NOT EXISTS idx_maintenance_job_runs_name ON maintenance_job_runs(job_name, created_at);
+
+            CREATE VIEW IF NOT EXISTS scan_summaries_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='scan_summary';
+
+            CREATE VIEW IF NOT EXISTS signals_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                symbol,
+                side,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='signal';
+
+            CREATE VIEW IF NOT EXISTS decisions_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                decision_id,
+                symbol,
+                side,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='decision';
+
+            CREATE VIEW IF NOT EXISTS fills_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                decision_id,
+                position_id,
+                symbol,
+                side,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='fill';
+
+            CREATE VIEW IF NOT EXISTS exits_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                decision_id,
+                position_id,
+                symbol,
+                side,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='exit';
+
+            CREATE VIEW IF NOT EXISTS outcomes_v AS
+            SELECT
+                id,
+                event_id,
+                repo,
+                environment,
+                strategy_id,
+                family,
+                variant_id,
+                profile_id,
+                run_id,
+                signal_id,
+                decision_id,
+                position_id,
+                symbol,
+                side,
+                ts,
+                payload_json
+            FROM raw_lifecycle_events
+            WHERE event_type='outcome';
             """
         )
 
@@ -402,6 +634,414 @@ def insert_event(run_id: str, event_type: str, payload: dict) -> None:
             """,
             (run_id, event_type, json.dumps(payload), utc_now()),
         )
+
+
+def upsert_runtime_run(
+    *,
+    run_id: str,
+    repo: str,
+    environment: str,
+    strategy_id: str,
+    family: str,
+    variant_id: str | None = None,
+    profile_id: str | None = None,
+    status: str = "ACTIVE",
+    first_event_ts: str | None = None,
+    last_event_ts: str | None = None,
+) -> None:
+    now = utc_now()
+    with get_conn() as conn:
+        existing = conn.execute("SELECT run_id, first_event_ts, last_event_ts FROM runtime_runs WHERE run_id=?", (run_id,)).fetchone()
+        if existing:
+            first_ts = existing["first_event_ts"] or first_event_ts or last_event_ts or now
+            last_ts = last_event_ts or existing["last_event_ts"] or first_event_ts or now
+            conn.execute(
+                """
+                UPDATE runtime_runs
+                SET repo=?, environment=?, strategy_id=?, family=?, variant_id=?, profile_id=?,
+                    status=?, first_event_ts=?, last_event_ts=?, updated_at=?
+                WHERE run_id=?
+                """,
+                (
+                    repo,
+                    environment,
+                    strategy_id,
+                    family,
+                    variant_id,
+                    profile_id,
+                    status,
+                    first_ts,
+                    last_ts,
+                    now,
+                    run_id,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO runtime_runs (
+                    run_id, repo, environment, strategy_id, family, variant_id, profile_id,
+                    status, first_event_ts, last_event_ts, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    repo,
+                    environment,
+                    strategy_id,
+                    family,
+                    variant_id,
+                    profile_id,
+                    status,
+                    first_event_ts or last_event_ts or now,
+                    last_event_ts or first_event_ts or now,
+                    now,
+                    now,
+                ),
+            )
+
+
+def insert_raw_lifecycle_event(record: dict[str, Any]) -> bool:
+    now = utc_now()
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM raw_lifecycle_events WHERE idempotency_key=?",
+            (record["idempotency_key"],),
+        ).fetchone()
+        if existing:
+            return False
+        conn.execute(
+            """
+            INSERT INTO raw_lifecycle_events (
+                event_id, schema_version, idempotency_key, event_type, repo, environment,
+                strategy_id, family, variant_id, profile_id, run_id, signal_id,
+                decision_id, position_id, symbol, side, ts, payload_json,
+                source_file, source_line, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["event_id"],
+                record["schema_version"],
+                record["idempotency_key"],
+                record["event_type"],
+                record["repo"],
+                record["environment"],
+                record["strategy_id"],
+                record["family"],
+                record.get("variant_id"),
+                record.get("profile_id"),
+                record["run_id"],
+                record["signal_id"],
+                record.get("decision_id"),
+                record.get("position_id"),
+                record.get("symbol"),
+                record.get("side"),
+                record["ts"],
+                json.dumps(record, ensure_ascii=False, sort_keys=True),
+                record.get("source_file"),
+                record.get("source_line"),
+                now,
+            ),
+        )
+        return True
+
+
+def _normalize_progress_pct(value: int | None) -> int:
+    pct = int(value or 0)
+    if pct < 0:
+        return 0
+    if pct > 100:
+        return 100
+    return pct
+
+
+def create_work_item(
+    *,
+    work_item_id: str,
+    title: str,
+    repo: str,
+    scope_type: str,
+    status: str,
+    progress_pct: int = 0,
+    strategy_id: str | None = None,
+    priority: str = "medium",
+    phase: str | None = None,
+    owner: str | None = None,
+    blocked_by: str | None = None,
+    deferred_reason: str | None = None,
+    decision_ref: str | None = None,
+    source_doc: str | None = None,
+    source_item_id: str | None = None,
+    acceptance_criteria: str | None = None,
+    notes: str = "",
+    target_date: str | None = None,
+) -> None:
+    now = utc_now()
+    progress = _normalize_progress_pct(progress_pct)
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO work_items (
+                id, title, repo, strategy_id, scope_type, status, progress_pct, priority, phase,
+                owner, blocked_by, deferred_reason, decision_ref, source_doc, source_item_id,
+                acceptance_criteria, notes, target_date, completed_at, last_reviewed_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                work_item_id,
+                title,
+                repo,
+                strategy_id,
+                scope_type,
+                status,
+                progress,
+                priority,
+                phase,
+                owner,
+                blocked_by,
+                deferred_reason,
+                decision_ref,
+                source_doc,
+                source_item_id,
+                acceptance_criteria,
+                notes,
+                target_date,
+                now if status == "done" else None,
+                now,
+                now,
+                now,
+            ),
+        )
+
+
+def get_work_item(work_item_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM work_items WHERE id=?", (work_item_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_work_item_by_source(source_doc: str, source_item_id: str | None = None) -> Optional[dict]:
+    with get_conn() as conn:
+        if source_item_id is None:
+            row = conn.execute(
+                "SELECT * FROM work_items WHERE source_doc=? AND source_item_id IS NULL ORDER BY created_at DESC LIMIT 1",
+                (source_doc,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM work_items WHERE source_doc=? AND source_item_id=? LIMIT 1",
+                (source_doc, source_item_id),
+            ).fetchone()
+        return dict(row) if row else None
+
+
+def list_work_items(
+    *,
+    repo: str | None = None,
+    strategy_id: str | None = None,
+    status: str | None = None,
+    scope_type: str | None = None,
+) -> list[dict]:
+    where = []
+    params: list[Any] = []
+    if repo:
+        where.append("repo=?")
+        params.append(repo)
+    if strategy_id:
+        where.append("strategy_id=?")
+        params.append(strategy_id)
+    if status:
+        where.append("status=?")
+        params.append(status)
+    if scope_type:
+        where.append("scope_type=?")
+        params.append(scope_type)
+    sql = "SELECT * FROM work_items"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY priority ASC, updated_at DESC, created_at DESC"
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_work_item_event(
+    *,
+    work_item_id: str,
+    event_type: str,
+    reason: str,
+    old_status: str | None = None,
+    new_status: str | None = None,
+    old_progress_pct: int | None = None,
+    new_progress_pct: int | None = None,
+    old_payload: dict[str, Any] | None = None,
+    new_payload: dict[str, Any] | None = None,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO work_item_events (
+                work_item_id, event_type, old_status, new_status, old_progress_pct, new_progress_pct,
+                reason, old_payload_json, new_payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                work_item_id,
+                event_type,
+                old_status,
+                new_status,
+                old_progress_pct,
+                _normalize_progress_pct(new_progress_pct) if new_progress_pct is not None else None,
+                reason,
+                json.dumps(old_payload or {}, ensure_ascii=True, sort_keys=True),
+                json.dumps(new_payload or {}, ensure_ascii=True, sort_keys=True),
+                utc_now(),
+            ),
+        )
+
+
+def update_work_item(
+    work_item_id: str,
+    *,
+    reason: str = "manual_update",
+    event_type: str = "progress_update",
+    **updates: Any,
+) -> None:
+    current = get_work_item(work_item_id)
+    if not current:
+        raise KeyError(f"Work item not found: {work_item_id}")
+    allowed = {
+        "title",
+        "repo",
+        "strategy_id",
+        "scope_type",
+        "status",
+        "progress_pct",
+        "priority",
+        "phase",
+        "owner",
+        "blocked_by",
+        "deferred_reason",
+        "decision_ref",
+        "source_doc",
+        "source_item_id",
+        "acceptance_criteria",
+        "notes",
+        "target_date",
+        "completed_at",
+        "last_reviewed_at",
+    }
+    payload = dict(current)
+    changed = False
+    for key, value in updates.items():
+        if key not in allowed:
+            continue
+        if key == "progress_pct" and value is not None:
+            value = _normalize_progress_pct(int(value))
+        if payload.get(key) != value:
+            payload[key] = value
+            changed = True
+    if not changed:
+        return
+    now = utc_now()
+    payload["updated_at"] = now
+    payload["last_reviewed_at"] = updates.get("last_reviewed_at") or now
+    if payload.get("status") == "done" and not payload.get("completed_at"):
+        payload["completed_at"] = now
+    set_clause = ", ".join(f"{k}=?" for k in payload.keys() if k != "id")
+    values = [payload[k] for k in payload.keys() if k != "id"]
+    with get_conn() as conn:
+        conn.execute(f"UPDATE work_items SET {set_clause} WHERE id=?", (*values, work_item_id))
+    create_work_item_event(
+        work_item_id=work_item_id,
+        event_type=event_type,
+        reason=reason,
+        old_status=current.get("status"),
+        new_status=payload.get("status"),
+        old_progress_pct=current.get("progress_pct"),
+        new_progress_pct=payload.get("progress_pct"),
+        old_payload=current,
+        new_payload=payload,
+    )
+
+
+def list_work_item_events(work_item_id: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM work_item_events WHERE work_item_id=? ORDER BY id ASC",
+            (work_item_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_runtime_import_state(source_path: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM runtime_import_state WHERE source_path=?",
+            (source_path,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def upsert_runtime_import_state(
+    *,
+    source_path: str,
+    last_line_processed: int,
+    last_status: str,
+    last_error: str | None = None,
+) -> None:
+    now = utc_now()
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT source_path FROM runtime_import_state WHERE source_path=?",
+            (source_path,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE runtime_import_state
+                SET last_line_processed=?, last_imported_at=?, last_status=?, last_error=?, updated_at=?
+                WHERE source_path=?
+                """,
+                (last_line_processed, now, last_status, last_error, now, source_path),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO runtime_import_state (
+                    source_path, last_line_processed, last_imported_at, last_status, last_error, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (source_path, last_line_processed, now, last_status, last_error, now, now),
+            )
+
+
+def list_runtime_import_states() -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM runtime_import_state ORDER BY source_path ASC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def record_maintenance_job_run(job_name: str, status: str, summary: dict[str, Any]) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO maintenance_job_runs (job_name, status, summary_json, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (job_name, status, json.dumps(summary, ensure_ascii=True, sort_keys=True), utc_now()),
+        )
+
+
+def get_last_maintenance_job_run(job_name: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM maintenance_job_runs WHERE job_name=? ORDER BY id DESC LIMIT 1",
+            (job_name,),
+        ).fetchone()
+        return dict(row) if row else None
 
 
 def list_events(run_id: str) -> list[dict]:

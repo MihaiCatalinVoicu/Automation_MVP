@@ -1,0 +1,8 @@
+[Unit]
+Description=Import runtime lifecycle events into automation-mvp
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/automation-mvp
+ExecStart=/srv/automation-mvp/.venv/bin/python runtime_events_import_job.py --repos crypto-bot,stocks-bot --output /srv/automation-mvp/data/runtime_events_import_latest.json

@@ -10,7 +10,9 @@ if str(ROOT) not in sys.path:
 
 from research_loop import (
     LoopDecision,
+    _config_fingerprint,
     _default_loop_root_for_args,
+    _is_redundant_replay_no_progress,
     _no_progress_churn_details,
     decide_next_action,
     mutate_config,
@@ -75,13 +77,13 @@ def test_mutate_config_tighten_risk() -> None:
             }
         },
     }
-    decision = LoopDecision("MUTATE", "dd_bad_good_pf", "mr_base", "tighten_risk", "max_drawdown below gate")
-    out = mutate_config(cohort, "spike_mean_reversion", decision, variants_per_generation=2)
-    assert out["dataset"]["fwd_hours"] == 12
+    decision = LoopDecision("MUTATE", "good_pf_bad_dd", "mr_base", "tighten_risk", "max_drawdown below gate")
+    out, meta = mutate_config(cohort, "spike_mean_reversion", decision, variants_per_generation=2)
+    assert meta["policy"] == "LOSS_SHAPE_DOWN"
     assert out["dataset"]["hard_stop_pct"] == -0.025
     variants = out["families"]["spike_mean_reversion"]["variants"]
     assert len(variants) == 2
-    assert variants[0]["spike_drop_pct"] > 0.10
+    assert variants[0]["variant_name"].endswith("_g1")
 
 
 def test_default_loop_root_reuses_existing_loop(tmp_path: Path) -> None:
@@ -159,6 +161,28 @@ def test_no_progress_churn_details_skips_when_progress_exists() -> None:
     }
     details = _no_progress_churn_details(history, current, gates, window_size=2)
     assert details is None
+
+
+def test_config_fingerprint_is_stable() -> None:
+    a = {"x": 1, "y": {"b": 2, "a": 3}}
+    b = {"y": {"a": 3, "b": 2}, "x": 1}
+    assert _config_fingerprint(a) == _config_fingerprint(b)
+
+
+def test_redundant_replay_no_progress_detects_duplicate_eval() -> None:
+    history = [
+        {
+            "config_fingerprint": "abc123",
+            "dominant_failure_mode": "robustness_warn",
+            "battery_metrics": {"window_passes": 0.0, "average_profit_factor": 0.2},
+        }
+    ]
+    assert _is_redundant_replay_no_progress(
+        history,
+        "abc123",
+        "robustness_warn",
+        {"window_passes": 0.0, "average_profit_factor": 0.2},
+    )
 
 
 if __name__ == "__main__":

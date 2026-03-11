@@ -1,0 +1,8 @@
+[Unit]
+Description=Reconcile lifecycle events inside automation-mvp
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/automation-mvp
+ExecStart=/srv/automation-mvp/.venv/bin/python lifecycle_reconcile_job.py --output-md /srv/automation-mvp/data/reports/lifecycle_reconcile_latest.md --output-json /srv/automation-mvp/data/reports/lifecycle_reconcile_latest.json

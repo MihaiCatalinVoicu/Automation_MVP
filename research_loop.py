@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,17 @@ from typing import Any
 from recipe_runner import run_validation_battery
 
 AUTOMATION_ROOT = Path(__file__).resolve().parent
+POLICY_VERSION = "v2"
+
+MUTATION_POLICY_MAP = {
+    "low_trades_good_pf": "FREQUENCY_UP",
+    "high_trades_bad_dd": "RISK_DOWN",
+    "high_trades_low_pf": "EDGE_UP",
+    "good_pf_bad_dd": "LOSS_SHAPE_DOWN",
+    "high_concentration": "DIVERSIFY",
+    "pf_bad_dd_bad": "FREEZE_NOW",
+    "robustness_warn": "EDGE_UP",
+}
 
 
 @dataclass
@@ -92,6 +104,17 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload) + "\n")
+
+
+def _config_fingerprint(cfg: dict[str, Any]) -> str:
+    payload = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -120,6 +143,27 @@ def _default_loop_root_for_args(family_id: str, config_path: Path, explicit_loop
 def _best_variant(summary: dict[str, Any]) -> dict[str, Any]:
     item = summary.get("best_variant")
     return item if isinstance(item, dict) else {}
+
+
+def _is_redundant_replay_no_progress(
+    history: list[dict[str, Any]],
+    current_fp: str,
+    current_mode: str,
+    current_battery_metrics: dict[str, Any],
+) -> bool:
+    if not history:
+        return False
+    prev = history[-1]
+    if str(prev.get("config_fingerprint", "")) != current_fp:
+        return False
+    if str(prev.get("dominant_failure_mode", "")) != current_mode:
+        return False
+    prev_metrics = prev.get("battery_metrics") or {}
+    prev_windows = float(prev_metrics.get("window_passes", 0.0) or 0.0)
+    prev_avg_pf = float(prev_metrics.get("average_profit_factor", 0.0) or 0.0)
+    now_windows = float(current_battery_metrics.get("window_passes", 0.0) or 0.0)
+    now_avg_pf = float(current_battery_metrics.get("average_profit_factor", 0.0) or 0.0)
+    return now_windows <= prev_windows and now_avg_pf <= prev_avg_pf
 
 
 def _has_repeated_alternating_signatures(history: list[dict[str, Any]], current_signature: str) -> bool:
@@ -184,7 +228,7 @@ def decide_next_action(
             failure_signature,
         )
 
-    if pf < 1.0 and dd < gate_dd - 15.0:
+    if pf < 1.0 and dd < gate_dd:
         return LoopDecision("FREEZE", "pf_bad_dd_bad", best.get("variant_name"), "stop_branch", failure_signature)
 
     if repeated_failures >= 1 and {"profit_factor below gate", "max_drawdown below gate"}.issubset(set(failures)):
@@ -194,22 +238,16 @@ def decide_next_action(
         return LoopDecision("MUTATE", "low_trades_good_pf", best.get("variant_name"), "increase_frequency", failure_signature)
 
     if pf >= gate_pf and dd < gate_dd and trades >= gate_trades:
-        return LoopDecision("MUTATE", "dd_bad_good_pf", best.get("variant_name"), "tighten_risk", failure_signature)
+        return LoopDecision("MUTATE", "good_pf_bad_dd", best.get("variant_name"), "tighten_risk", failure_signature)
 
-    if pf >= gate_pf and dd < gate_dd and trades < gate_trades:
-        return LoopDecision(
-            "MUTATE",
-            "dd_bad_low_trades_good_pf",
-            best.get("variant_name"),
-            "balance_risk_and_frequency",
-            failure_signature,
-        )
+    if pf < gate_pf and trades >= gate_trades and dd < gate_dd:
+        return LoopDecision("MUTATE", "high_trades_bad_dd", best.get("variant_name"), "tighten_risk", failure_signature)
+
+    if pf < gate_pf and trades >= gate_trades and dd >= gate_dd:
+        return LoopDecision("MUTATE", "high_trades_low_pf", best.get("variant_name"), "improve_signal_quality", failure_signature)
 
     if top3 > gate_top3 and pf >= gate_pf * 0.95:
-        return LoopDecision("MUTATE", "concentration_bad", best.get("variant_name"), "deconcentrate", failure_signature)
-
-    if pf >= gate_pf * 0.9 and dd < gate_dd and trades >= max(50, gate_trades // 2):
-        return LoopDecision("MUTATE", "dd_bad_near_pf", best.get("variant_name"), "tighten_risk", failure_signature)
+        return LoopDecision("MUTATE", "high_concentration", best.get("variant_name"), "deconcentrate", failure_signature)
 
     if generation >= max_generations:
         return LoopDecision("PIVOT_SUGGEST", "max_generations_reached", best.get("variant_name"), "pivot_family", failure_signature)
@@ -307,62 +345,109 @@ def _deconcentrate_variant(variant: dict[str, Any], suffix: str) -> dict[str, An
     return item
 
 
+def _bump(item: dict[str, Any], key: str, delta: float, min_value: float | None = None, max_value: float | None = None) -> bool:
+    if key not in item:
+        return False
+    value = float(item[key]) + delta
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    item[key] = round(value, 4)
+    return True
+
+
+def _bump_int(item: dict[str, Any], key: str, delta: int, min_value: int | None = None, max_value: int | None = None) -> bool:
+    if key not in item:
+        return False
+    value = int(item[key]) + delta
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    item[key] = value
+    return True
+
+
+def _apply_family_policy_variant(family_id: str, policy: str, variant: dict[str, Any], dataset: dict[str, Any], suffix: str) -> dict[str, Any]:
+    item = copy.deepcopy(variant)
+    changed = 0
+    if family_id == "spike_mean_reversion":
+        if policy == "FREQUENCY_UP":
+            changed += 1 if _bump(item, "spike_drop_pct", -0.01, min_value=0.03) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", 5.0, max_value=40.0) else 0
+        elif policy == "LOSS_SHAPE_DOWN":
+            changed += 1 if _bump_int(item, "hold_bars", -1, min_value=1) else 0
+            changed += 1 if changed < 2 and _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump(item, "spike_vol_mult", 0.5) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", -5.0, min_value=10.0) else 0
+    elif family_id == "breakout_momentum":
+        if policy == "FREQUENCY_UP":
+            changed += 1 if _bump_int(item, "breakout_lookback", -2, min_value=3) else 0
+            changed += 1 if changed < 2 and _bump(item, "breakout_vol_mult", -0.2, min_value=1.0) else 0
+        elif policy in {"RISK_DOWN", "LOSS_SHAPE_DOWN"}:
+            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump(item, "breakout_vol_mult", 0.5) else 0
+            changed += 1 if changed < 2 and _bump(item, "breakout_rsi_max", -4.0, min_value=40.0) else 0
+    elif family_id == "cross_sectional_momentum":
+        if policy == "DIVERSIFY":
+            changed += 1 if _bump_int(item, "top_k", 2, min_value=2) else 0
+            if changed < 2 and item.get("weighting") == "rank_weighted":
+                item["weighting"] = "equal_weight"
+                changed += 1
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump_int(item, "rank_window", 24, min_value=12) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+    elif family_id in {"oi_cascade", "liquidation_sweep"}:
+        if policy == "FREQUENCY_UP":
+            changed += 1 if _bump(item, "oi_jump_min", -0.02, min_value=0.01) else 0
+            changed += 1 if changed < 2 and _bump(item, "price_drop_min", -0.01, min_value=0.01) else 0
+        elif policy == "LOSS_SHAPE_DOWN":
+            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump(item, "oi_jump_min", 0.02) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_vol_mult", 0.5) else 0
+    # Fallback keeps loop alive with bounded, small changes.
+    if changed == 0:
+        _bump(item, "breakout_vol_mult", 0.1)
+        _bump(item, "spike_vol_mult", 0.1)
+    item["variant_name"] = f"{item.get('variant_name', 'variant')}_{suffix}"
+    return item
+
+
 def mutate_config(
     cohort_cfg: dict[str, Any],
     family_id: str,
     decision: LoopDecision,
     variants_per_generation: int,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     cfg = copy.deepcopy(cohort_cfg)
     if family_id not in cfg.get("families", {}):
         raise KeyError(f"Family not found in cohort config: {family_id}")
     family_cfg = cfg["families"][family_id]
     base_variant = _find_variant(family_cfg, decision.best_variant)
-    new_variants: list[dict[str, Any]]
-
-    if decision.reason == "low_trades_good_pf":
-        cfg["dataset"]["fwd_hours"] = min(24, int(cfg["dataset"].get("fwd_hours", 16)) + 4)
-        new_variants = [
-            _relax_variant(base_variant, "g1"),
-            _relax_variant(_relax_variant(base_variant, "tmp"), "g2"),
-        ]
-    elif decision.reason == "robustness_warn":
-        # Candidate exists but robustness is weak (window passes / avg PF warn).
-        # Push toward cleaner, more selective entries.
-        cfg["dataset"]["fwd_hours"] = max(8, int(cfg["dataset"].get("fwd_hours", 16)) - 4)
-        new_variants = [
-            _tighten_variant(base_variant, "g1"),
-            _tighten_variant(_tighten_variant(base_variant, "tmp"), "g2"),
-        ]
-    elif decision.reason in {"dd_bad_good_pf", "dd_bad_near_pf"}:
-        cfg["dataset"]["fwd_hours"] = max(4, int(cfg["dataset"].get("fwd_hours", 16)) - 4)
-        cfg["dataset"]["hard_stop_pct"] = round(min(-0.01, float(cfg["dataset"].get("hard_stop_pct", -0.03)) + 0.005), 4)
-        new_variants = [
-            _tighten_variant(base_variant, "g1"),
-            _tighten_variant(_tighten_variant(base_variant, "tmp"), "g2"),
-        ]
-    elif decision.reason == "dd_bad_low_trades_good_pf":
-        cfg["dataset"]["fwd_hours"] = max(4, int(cfg["dataset"].get("fwd_hours", 16)) - 4)
-        cfg["dataset"]["hard_stop_pct"] = round(min(-0.01, float(cfg["dataset"].get("hard_stop_pct", -0.03)) + 0.005), 4)
-        new_variants = [
-            _tighten_variant(base_variant, "g1"),
-            _relax_variant(base_variant, "g2"),
-        ]
-    elif decision.reason == "concentration_bad":
-        new_variants = [
-            _deconcentrate_variant(base_variant, "g1"),
-            _deconcentrate_variant(_deconcentrate_variant(base_variant, "tmp"), "g2"),
-        ]
-    else:
-        new_variants = [
-            _tighten_variant(base_variant, "g1"),
-            _relax_variant(base_variant, "g2"),
-        ]
+    policy = MUTATION_POLICY_MAP.get(decision.reason, "FREEZE_NOW")
+    if policy == "FREEZE_NOW":
+        raise ValueError(f"No mutation allowed for reason={decision.reason}")
+    new_variants = [
+        _apply_family_policy_variant(family_id, policy, base_variant, cfg["dataset"], "g1"),
+        _apply_family_policy_variant(family_id, policy, base_variant, cfg["dataset"], "g2"),
+    ]
 
     family_cfg["variants"] = new_variants[: max(1, variants_per_generation)]
     cfg["families"] = {family_id: family_cfg}
     cfg["cohort_name"] = f"{cfg.get('cohort_name', family_id)}_{decision.reason}"
-    return cfg
+    mutation_meta = {
+        "policy": policy,
+        "mutation_reason": decision.reason,
+        "base_variant": base_variant.get("variant_name"),
+        "new_variants": [x.get("variant_name") for x in family_cfg["variants"]],
+    }
+    return cfg, mutation_meta
 
 
 def run_loop(
@@ -385,7 +470,7 @@ def run_loop(
         state["config_path"] = str(config_path.resolve())
         state["recipe_path"] = recipe_path
         state["repo_root"] = str(repo_root.resolve())
-        state["policy_version"] = "v1"
+        state["policy_version"] = POLICY_VERSION
         state["family_id"] = family_id
         state["loop_id"] = loop_root.name
     else:
@@ -395,7 +480,7 @@ def run_loop(
             "config_path": str(config_path.resolve()),
             "recipe_path": recipe_path,
             "repo_root": str(repo_root.resolve()),
-            "policy_version": "v1",
+            "policy_version": POLICY_VERSION,
             "started_at": _utc_now(),
             "generation": 0,
             "status": "INIT",
@@ -424,6 +509,7 @@ def run_loop(
             "run_date": run_date,
         }
         battery_summary = run_validation_battery(recipe_path, run_context, generation_dir, base_path=AUTOMATION_ROOT)
+        config_fp = _config_fingerprint(current_cfg)
         family_summary_path = generation_dir / "family_summary.json"
         if not family_summary_path.exists():
             raise FileNotFoundError(f"Expected family summary missing: {family_summary_path}")
@@ -442,6 +528,20 @@ def run_loop(
                 "robustness_warn",
                 decision.best_variant,
                 "improve_window_and_avg_pf",
+                decision.failure_signature,
+            )
+
+        if decision.decision == "MUTATE" and _is_redundant_replay_no_progress(
+            state["history"],
+            config_fp,
+            decision.reason,
+            (battery_summary.get("metrics") or {}),
+        ):
+            decision = LoopDecision(
+                "FREEZE",
+                "redundant_replay_no_progress",
+                decision.best_variant,
+                "stop_branch",
                 decision.failure_signature,
             )
 
@@ -488,6 +588,8 @@ def run_loop(
                 "failure_signature": decision.failure_signature,
                 "metrics": (_best_variant(family_summary).get("metrics") or {}),
                 "battery_metrics": (battery_summary.get("metrics") or {}),
+                "dominant_failure_mode": decision.reason,
+                "config_fingerprint": config_fp,
                 "summary_path": str(family_summary_path),
             }
         )
@@ -495,13 +597,39 @@ def run_loop(
             state["freeze_details"] = churn_details
         _write_json(loop_root / "loop_state.json", state)
 
-        if decision.decision != "MUTATE" or generation >= max_generations:
+        if decision.decision == "MUTATE" and generation >= final_generation:
+            _append_jsonl(
+                loop_root / "mutation_log.jsonl",
+                {
+                    "generation": generation,
+                    "family": family_id,
+                    "event": "mutation_skipped_due_to_budget",
+                    "reason": decision.reason,
+                    "policy": MUTATION_POLICY_MAP.get(decision.reason, "FREEZE_NOW"),
+                    "base_variant": decision.best_variant,
+                    "max_evaluations_reached": True,
+                },
+            )
             break
 
-        current_cfg = mutate_config(current_cfg, family_id, decision, variants_per_generation)
+        if decision.decision != "MUTATE":
+            break
+
+        current_cfg, mutation_meta = mutate_config(current_cfg, family_id, decision, variants_per_generation)
         next_config_path = loop_root / f"generation_{generation + 1}" / "cohort_config.json"
         _write_json(next_config_path, current_cfg)
         _write_json(loop_root / "next_batch_config.json", current_cfg)
+        _append_jsonl(
+            loop_root / "mutation_log.jsonl",
+            {
+                "generation": generation,
+                "family": family_id,
+                "base_variant": mutation_meta.get("base_variant"),
+                "policy": mutation_meta.get("policy"),
+                "reason": mutation_meta.get("mutation_reason"),
+                "new_variants": mutation_meta.get("new_variants"),
+            },
+        )
         current_path = next_config_path
 
     state["ended_at"] = _utc_now()

@@ -1,0 +1,3697 @@
+{
+  "version": 1,
+  "repo_filter": "all",
+  "strategies": [
+    {
+      "id": "execution_cost_realism",
+      "name": "Execution cost realism",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "execution_realism",
+      "purpose": "Ensure edge survives fees and slippage.",
+      "business_hypothesis": "Strategies without healthy breakeven buffer are fantasy.",
+      "status_state": "complete",
+      "status_pct": 100,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"cost\", \"slippage\", \"fees\", \"breakeven\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.059921+00:00",
+      "created_at": "2026-03-10T10:41:52.274023+00:00",
+      "updated_at": "2026-03-10T14:48:23.059921+00:00",
+      "tags": [
+        "cost",
+        "slippage",
+        "fees",
+        "breakeven"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 69,
+            "strategy_id": "execution_cost_realism",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\core\\\\cost_model.py\", \"D:\\\\crypto-bot\\\\scripts\\\\cost_sensitivity.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.059921+00:00",
+            "created_at": "2026-03-10T14:48:23.059921+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 80,
+            "strategy_id": "execution_cost_realism",
+            "component_name": "cost_sensitivity",
+            "component_category": "validation_tooling",
+            "description": "Breakeven cost analysis",
+            "status_state": "complete",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 154,
+            "strategy_id": "execution_cost_realism",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\cost_model.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 155,
+            "strategy_id": "execution_cost_realism",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\cost_sensitivity.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 102,
+            "strategy_id": "execution_cost_realism",
+            "metric_name": "breakeven_bps",
+            "target_value": ">=80",
+            "threshold_rule": "promotion",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 69,
+            "strategy_id": "execution_cost_realism",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 78,
+            "strategy_id": "execution_cost_realism",
+            "metric_name": "breakeven_bps",
+            "trigger_rule": "breakeven_bps < 80",
+            "reevaluation_cadence": "6h",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "ml_risk_overlay",
+      "name": "ML risk overlay",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "ml_overlay",
+      "purpose": "Use ML as risk gate / size modifier rather than directional oracle.",
+      "business_hypothesis": "ML can improve risk control if it reduces drawdown without emptying the flow.",
+      "status_state": "partial",
+      "status_pct": 50,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"ml\", \"overlay\", \"risk_gate\", \"p_highrisk\"]",
+      "notes": "Current state has overlapping ML paths and should be audited before expansion.",
+      "last_reviewed_at": "2026-03-10T14:48:23.074839+00:00",
+      "created_at": "2026-03-10T10:41:52.288079+00:00",
+      "updated_at": "2026-03-10T14:48:23.074839+00:00",
+      "tags": [
+        "ml",
+        "overlay",
+        "risk_gate",
+        "p_highrisk"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 73,
+            "strategy_id": "ml_risk_overlay",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\core\\\\ml_risk.py\", \"D:\\\\crypto-bot\\\\ml_gate.py\", \"D:\\\\crypto-bot\\\\ml_risk_gate.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.074839+00:00",
+            "created_at": "2026-03-10T14:48:23.074839+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 85,
+            "strategy_id": "ml_risk_overlay",
+            "component_name": "ml_risk_action",
+            "component_category": "ml_overlay",
+            "description": "ALLOW/HALF/SKIP path",
+            "status_state": "partial",
+            "notes": ""
+          },
+          {
+            "id": 86,
+            "strategy_id": "ml_risk_overlay",
+            "component_name": "legacy_ml_gate",
+            "component_category": "shadow",
+            "description": "Old ML gate path",
+            "status_state": "partial",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 162,
+            "strategy_id": "ml_risk_overlay",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\ml_risk.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 163,
+            "strategy_id": "ml_risk_overlay",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\ml_gate.py",
+            "role": "shadow",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 164,
+            "strategy_id": "ml_risk_overlay",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\ml_risk_gate.py",
+            "role": "shadow",
+            "is_shadow": 1,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 109,
+            "strategy_id": "ml_risk_overlay",
+            "metric_name": "max_drawdown_pct",
+            "target_value": "improve vs baseline",
+            "threshold_rule": "promotion",
+            "notes": ""
+          },
+          {
+            "id": 110,
+            "strategy_id": "ml_risk_overlay",
+            "metric_name": "rows_after_filter",
+            "target_value": "not collapse",
+            "threshold_rule": "promotion",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 73,
+            "strategy_id": "ml_risk_overlay",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 82,
+            "strategy_id": "ml_risk_overlay",
+            "metric_name": "duplicate_ml_logic",
+            "trigger_rule": "legacy ml gates still active",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "AUDIT",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "legacy_decision_logging",
+      "name": "Legacy decision logging overlap",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "observability",
+      "purpose": "Track overlapping CSV and JSONL decision logs that may no longer be consistent.",
+      "business_hypothesis": "Logging duplication creates drift and hides runtime truth.",
+      "status_state": "shadow",
+      "status_pct": 25,
+      "operational_status": "shadow",
+      "current_verdict": "REMOVE",
+      "owner": "mihai",
+      "tags_json": "[\"logging\", \"decision_log\", \"shadow\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.078048+00:00",
+      "created_at": "2026-03-10T10:41:52.291624+00:00",
+      "updated_at": "2026-03-10T14:48:23.078048+00:00",
+      "tags": [
+        "logging",
+        "decision_log",
+        "shadow"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 74,
+            "strategy_id": "legacy_decision_logging",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "REMOVE",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\trade_logger.py\", \"D:\\\\crypto-bot\\\\core\\\\decision_log.py\", \"D:\\\\crypto-bot\\\\ml_pipeline.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.078048+00:00",
+            "created_at": "2026-03-10T14:48:23.078048+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 87,
+            "strategy_id": "legacy_decision_logging",
+            "component_name": "csv_logging",
+            "component_category": "observability",
+            "description": "Legacy CSV journaling",
+            "status_state": "shadow",
+            "notes": ""
+          },
+          {
+            "id": 88,
+            "strategy_id": "legacy_decision_logging",
+            "component_name": "jsonl_logging",
+            "component_category": "observability",
+            "description": "Structured JSONL logging",
+            "status_state": "shadow",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 165,
+            "strategy_id": "legacy_decision_logging",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\trade_logger.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 166,
+            "strategy_id": "legacy_decision_logging",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\decision_log.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 167,
+            "strategy_id": "legacy_decision_logging",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\ml_pipeline.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 111,
+            "strategy_id": "legacy_decision_logging",
+            "metric_name": "consistency",
+            "target_value": "single runtime truth",
+            "threshold_rule": "audit",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 74,
+            "strategy_id": "legacy_decision_logging",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"REMOVE\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "REMOVE"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 83,
+            "strategy_id": "legacy_decision_logging",
+            "metric_name": "shadow_logging",
+            "trigger_rule": "duplicate decision logs persist",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "REMOVE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "atr_quality_filter",
+      "name": "ATR quality filter",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "quality_filter",
+      "purpose": "Reject excessive volatility contexts via ATR caps.",
+      "business_hypothesis": "ATR filtering can improve signal quality if it preserves enough density.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"atr\", \"volatility\", \"quality\", \"max_atr\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.046925+00:00",
+      "created_at": "2026-03-10T10:41:52.260057+00:00",
+      "updated_at": "2026-03-10T14:48:23.046925+00:00",
+      "tags": [
+        "atr",
+        "volatility",
+        "quality",
+        "max_atr"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 65,
+            "strategy_id": "atr_quality_filter",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\scripts\\\\portfolio_replay.py\", \"D:\\\\crypto-bot\\\\scripts\\\\micro_autoresearch.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.046925+00:00",
+            "created_at": "2026-03-10T14:48:23.046925+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 76,
+            "strategy_id": "atr_quality_filter",
+            "component_name": "max_atr_filter",
+            "component_category": "quality_filter",
+            "description": "Replay-time ATR cap",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 146,
+            "strategy_id": "atr_quality_filter",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\portfolio_replay.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 147,
+            "strategy_id": "atr_quality_filter",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\micro_autoresearch.py",
+            "role": "research",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 97,
+            "strategy_id": "atr_quality_filter",
+            "metric_name": "rows_after_filter",
+            "target_value": ">=40",
+            "threshold_rule": "search-gate",
+            "notes": ""
+          },
+          {
+            "id": 98,
+            "strategy_id": "atr_quality_filter",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "robustness",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 65,
+            "strategy_id": "atr_quality_filter",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 74,
+            "strategy_id": "atr_quality_filter",
+            "metric_name": "rows_after_filter",
+            "trigger_rule": "rows_after_filter < 40",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "btc_regime_gate",
+      "name": "BTC regime gate",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "regime_filter",
+      "purpose": "Restrict scanning/execution to favorable BTC structural regimes.",
+      "business_hypothesis": "Macro context filter should reduce poor-context entries and drawdown.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"btc\", \"regime\", \"trend_strong\", \"filter\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.040584+00:00",
+      "created_at": "2026-03-10T10:41:52.253587+00:00",
+      "updated_at": "2026-03-10T14:48:23.040584+00:00",
+      "tags": [
+        "btc",
+        "regime",
+        "trend_strong",
+        "filter"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 63,
+            "strategy_id": "btc_regime_gate",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\core\\\\regime_gate.py\", \"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\scripts\\\\regime_opportunity_report.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.040584+00:00",
+            "created_at": "2026-03-10T14:48:23.040584+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 74,
+            "strategy_id": "btc_regime_gate",
+            "component_name": "trend_strong_gate",
+            "component_category": "regime_filter",
+            "description": "Gate entire scan on BTC regime",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 140,
+            "strategy_id": "btc_regime_gate",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\regime_gate.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 141,
+            "strategy_id": "btc_regime_gate",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 142,
+            "strategy_id": "btc_regime_gate",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\regime_opportunity_report.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 93,
+            "strategy_id": "btc_regime_gate",
+            "metric_name": "max_drawdown_pct",
+            "target_value": ">=-15",
+            "threshold_rule": "safety",
+            "notes": ""
+          },
+          {
+            "id": 94,
+            "strategy_id": "btc_regime_gate",
+            "metric_name": "rows_after_filter",
+            "target_value": ">=40",
+            "threshold_rule": "density",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 63,
+            "strategy_id": "btc_regime_gate",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 71,
+            "strategy_id": "btc_regime_gate",
+            "metric_name": "rows_after_filter",
+            "trigger_rule": "rows_after_filter < 40",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "btc_risk_off_filter",
+      "name": "BTC risk-off filter",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "regime_filter",
+      "purpose": "Use BTC daily EMA200 risk-off logic to filter or constrain entries.",
+      "business_hypothesis": "BTC risk-off state improves replay quality but may overfilter and concentrate edge.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"btc\", \"risk_off\", \"ema200\", \"filter\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.043786+00:00",
+      "created_at": "2026-03-10T10:41:52.257008+00:00",
+      "updated_at": "2026-03-10T14:48:23.043786+00:00",
+      "tags": [
+        "btc",
+        "risk_off",
+        "ema200",
+        "filter"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 64,
+            "strategy_id": "btc_risk_off_filter",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\scripts\\\\portfolio_replay.py\", \"D:\\\\crypto-bot\\\\scripts\\\\phaseb_incremental.sh\"]",
+            "reviewed_at": "2026-03-10T14:48:23.043786+00:00",
+            "created_at": "2026-03-10T14:48:23.043786+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 75,
+            "strategy_id": "btc_risk_off_filter",
+            "component_name": "risk_off_gate",
+            "component_category": "regime_filter",
+            "description": "Per-run and replay BTC risk-off gating",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 143,
+            "strategy_id": "btc_risk_off_filter",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 144,
+            "strategy_id": "btc_risk_off_filter",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\portfolio_replay.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 145,
+            "strategy_id": "btc_risk_off_filter",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\phaseb_incremental.sh",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 95,
+            "strategy_id": "btc_risk_off_filter",
+            "metric_name": "profit_factor",
+            "target_value": ">=1.3",
+            "threshold_rule": "promotion",
+            "notes": ""
+          },
+          {
+            "id": 96,
+            "strategy_id": "btc_risk_off_filter",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=80",
+            "threshold_rule": "concentration",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 64,
+            "strategy_id": "btc_risk_off_filter",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 72,
+            "strategy_id": "btc_risk_off_filter",
+            "metric_name": "top3_share_pct",
+            "trigger_rule": "top3_share_pct > 80",
+            "reevaluation_cadence": "6h",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          },
+          {
+            "id": 73,
+            "strategy_id": "btc_risk_off_filter",
+            "metric_name": "profit_factor",
+            "trigger_rule": "PF < 1.3",
+            "reevaluation_cadence": "6h",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "breakout_momentum",
+      "name": "Breakout Momentum family",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "research_family",
+      "purpose": "Month-1 research family for continuation breakouts on 4h Top-50 data.",
+      "business_hypothesis": "Simple breakout continuation on 4h may survive costs if signal density and concentration are acceptable.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "research_active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"month1\", \"research\", \"breakout\", \"momentum\", \"4h\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.125468+00:00",
+      "created_at": "2026-03-10T14:38:50.104302+00:00",
+      "updated_at": "2026-03-10T14:48:23.125468+00:00",
+      "tags": [
+        "month1",
+        "research",
+        "breakout",
+        "momentum",
+        "4h"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 88,
+            "strategy_id": "breakout_momentum",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"core/ideas.py\", \"scripts/run_cohort_research.py\", \"configs/discovery_profiles_breakout_momentum.json\", \"scripts/profile_discovery.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.125468+00:00",
+            "created_at": "2026-03-10T14:48:23.125468+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 103,
+            "strategy_id": "breakout_momentum",
+            "component_name": "breakout_family",
+            "component_category": "research_family",
+            "description": "Continuation breakout hypothesis batch",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 193,
+            "strategy_id": "breakout_momentum",
+            "repo": "crypto-bot",
+            "file_path": "core/ideas.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 194,
+            "strategy_id": "breakout_momentum",
+            "repo": "crypto-bot",
+            "file_path": "scripts/run_cohort_research.py",
+            "role": "orchestration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 195,
+            "strategy_id": "breakout_momentum",
+            "repo": "crypto-bot",
+            "file_path": "configs/discovery_profiles_breakout_momentum.json",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 196,
+            "strategy_id": "breakout_momentum",
+            "repo": "crypto-bot",
+            "file_path": "scripts/profile_discovery.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 127,
+            "strategy_id": "breakout_momentum",
+            "metric_name": "candidate_count",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 128,
+            "strategy_id": "breakout_momentum",
+            "metric_name": "window_passes",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 129,
+            "strategy_id": "breakout_momentum",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "robustness",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 88,
+            "strategy_id": "breakout_momentum",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 97,
+            "strategy_id": "breakout_momentum",
+            "metric_name": "candidate_count",
+            "trigger_rule": "candidate_count < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "REJECT",
+            "active": 1,
+            "notes": ""
+          },
+          {
+            "id": 98,
+            "strategy_id": "breakout_momentum",
+            "metric_name": "window_passes",
+            "trigger_rule": "window_passes < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "cross_sectional_momentum",
+      "name": "Cross-sectional Momentum family",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "research_family",
+      "purpose": "Month-1 research family for ranking Top-50 coins by relative strength and replaying the strongest candidates.",
+      "business_hypothesis": "Relative-strength leadership on 4h may persist long enough to produce repeatable edge when ranked cross-sectionally.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "research_active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"month1\", \"research\", \"cross_sectional\", \"momentum\", \"top50\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.132055+00:00",
+      "created_at": "2026-03-10T14:38:50.111177+00:00",
+      "updated_at": "2026-03-10T14:48:23.132055+00:00",
+      "tags": [
+        "month1",
+        "research",
+        "cross_sectional",
+        "momentum",
+        "top50"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 90,
+            "strategy_id": "cross_sectional_momentum",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"scripts/generate_cross_sectional_batch.py\", \"scripts/run_cohort_research.py\", \"configs/discovery_profiles_cross_sectional_momentum.json\", \"scripts/profile_discovery.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.132055+00:00",
+            "created_at": "2026-03-10T14:48:23.132055+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 105,
+            "strategy_id": "cross_sectional_momentum",
+            "component_name": "xsmom_family",
+            "component_category": "research_family",
+            "description": "Cross-sectional momentum hypothesis batch",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 201,
+            "strategy_id": "cross_sectional_momentum",
+            "repo": "crypto-bot",
+            "file_path": "scripts/generate_cross_sectional_batch.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 202,
+            "strategy_id": "cross_sectional_momentum",
+            "repo": "crypto-bot",
+            "file_path": "scripts/run_cohort_research.py",
+            "role": "orchestration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 203,
+            "strategy_id": "cross_sectional_momentum",
+            "repo": "crypto-bot",
+            "file_path": "configs/discovery_profiles_cross_sectional_momentum.json",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 204,
+            "strategy_id": "cross_sectional_momentum",
+            "repo": "crypto-bot",
+            "file_path": "scripts/profile_discovery.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 133,
+            "strategy_id": "cross_sectional_momentum",
+            "metric_name": "candidate_count",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 134,
+            "strategy_id": "cross_sectional_momentum",
+            "metric_name": "window_passes",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 135,
+            "strategy_id": "cross_sectional_momentum",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "robustness",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 90,
+            "strategy_id": "cross_sectional_momentum",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 101,
+            "strategy_id": "cross_sectional_momentum",
+            "metric_name": "candidate_count",
+            "trigger_rule": "candidate_count < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "REJECT",
+            "active": 1,
+            "notes": ""
+          },
+          {
+            "id": 102,
+            "strategy_id": "cross_sectional_momentum",
+            "metric_name": "window_passes",
+            "trigger_rule": "window_passes < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "spike_mean_reversion",
+      "name": "Spike Mean Reversion family",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "research_family",
+      "purpose": "Month-1 research family for long mean reversion after downside 4h liquidation-like flushes.",
+      "business_hypothesis": "Oversold high-volume downside spikes may mean-revert over the next 1-3 bars on 4h data.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "research_active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"month1\", \"research\", \"mean_reversion\", \"spike\", \"4h\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.128890+00:00",
+      "created_at": "2026-03-10T14:38:50.108313+00:00",
+      "updated_at": "2026-03-10T14:48:23.128890+00:00",
+      "tags": [
+        "month1",
+        "research",
+        "mean_reversion",
+        "spike",
+        "4h"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 89,
+            "strategy_id": "spike_mean_reversion",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"core/ideas.py\", \"scripts/run_cohort_research.py\", \"configs/discovery_profiles_spike_mean_reversion.json\", \"scripts/profile_discovery.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.128890+00:00",
+            "created_at": "2026-03-10T14:48:23.128890+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 104,
+            "strategy_id": "spike_mean_reversion",
+            "component_name": "spike_mr_family",
+            "component_category": "research_family",
+            "description": "Downside spike mean-reversion hypothesis batch",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 197,
+            "strategy_id": "spike_mean_reversion",
+            "repo": "crypto-bot",
+            "file_path": "core/ideas.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 198,
+            "strategy_id": "spike_mean_reversion",
+            "repo": "crypto-bot",
+            "file_path": "scripts/run_cohort_research.py",
+            "role": "orchestration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 199,
+            "strategy_id": "spike_mean_reversion",
+            "repo": "crypto-bot",
+            "file_path": "configs/discovery_profiles_spike_mean_reversion.json",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 200,
+            "strategy_id": "spike_mean_reversion",
+            "repo": "crypto-bot",
+            "file_path": "scripts/profile_discovery.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 130,
+            "strategy_id": "spike_mean_reversion",
+            "metric_name": "candidate_count",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 131,
+            "strategy_id": "spike_mean_reversion",
+            "metric_name": "window_passes",
+            "target_value": ">=1",
+            "threshold_rule": "shadow-screen",
+            "notes": ""
+          },
+          {
+            "id": 132,
+            "strategy_id": "spike_mean_reversion",
+            "metric_name": "max_drawdown_pct",
+            "target_value": ">=-25",
+            "threshold_rule": "early-screen",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 89,
+            "strategy_id": "spike_mean_reversion",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 99,
+            "strategy_id": "spike_mean_reversion",
+            "metric_name": "candidate_count",
+            "trigger_rule": "candidate_count < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "REJECT",
+            "active": 1,
+            "notes": ""
+          },
+          {
+            "id": 100,
+            "strategy_id": "spike_mean_reversion",
+            "metric_name": "window_passes",
+            "trigger_rule": "window_passes < 1",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "cooldown_logic",
+      "name": "Cooldown logic",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "risk_sizing",
+      "purpose": "Reduce clustering and low-quality immediate re-entries.",
+      "business_hypothesis": "Cooldown reduces repeated poor entries and concentration of losses.",
+      "status_state": "partial",
+      "status_pct": 50,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"cooldown\", \"reentry\", \"clustering\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.053357+00:00",
+      "created_at": "2026-03-10T10:41:52.267491+00:00",
+      "updated_at": "2026-03-10T14:48:23.053357+00:00",
+      "tags": [
+        "cooldown",
+        "reentry",
+        "clustering"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 67,
+            "strategy_id": "cooldown_logic",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\scripts\\\\portfolio_replay.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.053357+00:00",
+            "created_at": "2026-03-10T14:48:23.053357+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 78,
+            "strategy_id": "cooldown_logic",
+            "component_name": "symbol_cooldown",
+            "component_category": "risk_sizing",
+            "description": "Per-symbol cooldown after loss/exit",
+            "status_state": "partial",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 150,
+            "strategy_id": "cooldown_logic",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 151,
+            "strategy_id": "cooldown_logic",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\portfolio_replay.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 100,
+            "strategy_id": "cooldown_logic",
+            "metric_name": "max_losing_streak",
+            "target_value": "<=7",
+            "threshold_rule": "safety",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 67,
+            "strategy_id": "cooldown_logic",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 76,
+            "strategy_id": "cooldown_logic",
+            "metric_name": "max_losing_streak",
+            "trigger_rule": "max_losing_streak > 7",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "max_positions_cap",
+      "name": "Max positions cap",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "risk_sizing",
+      "purpose": "Control portfolio overlap and diversify edge.",
+      "business_hypothesis": "Max positions changes the distribution of captured opportunities and concentration.",
+      "status_state": "partial",
+      "status_pct": 50,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"max_positions\", \"portfolio\", \"overlap\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.056494+00:00",
+      "created_at": "2026-03-10T10:41:52.270733+00:00",
+      "updated_at": "2026-03-10T14:48:23.056494+00:00",
+      "tags": [
+        "max_positions",
+        "portfolio",
+        "overlap"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 68,
+            "strategy_id": "max_positions_cap",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\scripts\\\\portfolio_replay.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.056494+00:00",
+            "created_at": "2026-03-10T14:48:23.056494+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 79,
+            "strategy_id": "max_positions_cap",
+            "component_name": "position_cap",
+            "component_category": "risk_sizing",
+            "description": "Concurrent positions cap",
+            "status_state": "partial",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 152,
+            "strategy_id": "max_positions_cap",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 153,
+            "strategy_id": "max_positions_cap",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\portfolio_replay.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 101,
+            "strategy_id": "max_positions_cap",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "robustness",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 68,
+            "strategy_id": "max_positions_cap",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 77,
+            "strategy_id": "max_positions_cap",
+            "metric_name": "top3_share_pct",
+            "trigger_rule": "top3_share_pct > 70",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "risk_per_trade_sizing",
+      "name": "Risk-per-trade sizing",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "risk_sizing",
+      "purpose": "Scale exposure per trade without changing signal logic.",
+      "business_hypothesis": "Sizing should amplify valid edge, not create it.",
+      "status_state": "complete",
+      "status_pct": 100,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"sizing\", \"risk_per_trade\", \"exposure\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.050141+00:00",
+      "created_at": "2026-03-10T10:41:52.264064+00:00",
+      "updated_at": "2026-03-10T14:48:23.050141+00:00",
+      "tags": [
+        "sizing",
+        "risk_per_trade",
+        "exposure"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 66,
+            "strategy_id": "risk_per_trade_sizing",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\risk_manager.py\", \"D:\\\\crypto-bot\\\\scripts\\\\portfolio_replay.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.050141+00:00",
+            "created_at": "2026-03-10T14:48:23.050141+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 77,
+            "strategy_id": "risk_per_trade_sizing",
+            "component_name": "risk_per_trade",
+            "component_category": "risk_sizing",
+            "description": "Fixed fraction exposure per trade",
+            "status_state": "complete",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 148,
+            "strategy_id": "risk_per_trade_sizing",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\risk_manager.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 149,
+            "strategy_id": "risk_per_trade_sizing",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\portfolio_replay.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 99,
+            "strategy_id": "risk_per_trade_sizing",
+            "metric_name": "max_drawdown_pct",
+            "target_value": ">=-15",
+            "threshold_rule": "safety",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 66,
+            "strategy_id": "risk_per_trade_sizing",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 75,
+            "strategy_id": "risk_per_trade_sizing",
+            "metric_name": "max_drawdown_pct",
+            "trigger_rule": "max_drawdown_pct < -15",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "breakout_setup",
+      "name": "Breakout setup",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "setup",
+      "purpose": "Capture strong continuation moves in favorable regime.",
+      "business_hypothesis": "Breakout signals produce tradable edge when paired with regime/risk filters.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"breakout\", \"entry\", \"setup\", \"trend\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.029326+00:00",
+      "created_at": "2026-03-10T10:41:52.242296+00:00",
+      "updated_at": "2026-03-10T14:48:23.029326+00:00",
+      "tags": [
+        "breakout",
+        "entry",
+        "setup",
+        "trend"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 60,
+            "strategy_id": "breakout_setup",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\core\\\\ideas.py\", \"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\paper_engine\\\\runner.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.029326+00:00",
+            "created_at": "2026-03-10T14:48:23.029326+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 70,
+            "strategy_id": "breakout_setup",
+            "component_name": "breakout_signal",
+            "component_category": "setup",
+            "description": "Entry signal generation",
+            "status_state": "functional",
+            "notes": ""
+          },
+          {
+            "id": 71,
+            "strategy_id": "breakout_setup",
+            "component_name": "breakout_replay",
+            "component_category": "validation_tooling",
+            "description": "Replay and backtest coverage",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 133,
+            "strategy_id": "breakout_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\ideas.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 134,
+            "strategy_id": "breakout_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 135,
+            "strategy_id": "breakout_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\paper_engine\\runner.py",
+            "role": "paper-runtime",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 88,
+            "strategy_id": "breakout_setup",
+            "metric_name": "profit_factor",
+            "target_value": ">=1.3",
+            "threshold_rule": "promotion",
+            "notes": ""
+          },
+          {
+            "id": 89,
+            "strategy_id": "breakout_setup",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "robustness",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 60,
+            "strategy_id": "breakout_setup",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 67,
+            "strategy_id": "breakout_setup",
+            "metric_name": "profit_factor",
+            "trigger_rule": "PF < 1.3",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          },
+          {
+            "id": 68,
+            "strategy_id": "breakout_setup",
+            "metric_name": "top3_share_pct",
+            "trigger_rule": "top3_share_pct > 70",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "pullback_v2_setup",
+      "name": "Pullback V2 setup",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "setup",
+      "purpose": "Refined pullback logic used by batch/paper paths.",
+      "business_hypothesis": "A more explicit pullback variant may behave differently from legacy runtime pullback.",
+      "status_state": "partial",
+      "status_pct": 50,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"pullbackv2\", \"pullback\", \"paper-engine\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.037455+00:00",
+      "created_at": "2026-03-10T10:41:52.250126+00:00",
+      "updated_at": "2026-03-10T14:48:23.037455+00:00",
+      "tags": [
+        "pullbackv2",
+        "pullback",
+        "paper-engine"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 62,
+            "strategy_id": "pullback_v2_setup",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\core\\\\ideas.py\", \"D:\\\\crypto-bot\\\\paper_engine\\\\config.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.037455+00:00",
+            "created_at": "2026-03-10T14:48:23.037455+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 73,
+            "strategy_id": "pullback_v2_setup",
+            "component_name": "pullback_v2",
+            "component_category": "setup",
+            "description": "Paper engine / batch-only pullback variant",
+            "status_state": "partial",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 138,
+            "strategy_id": "pullback_v2_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\ideas.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 139,
+            "strategy_id": "pullback_v2_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\paper_engine\\config.py",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 92,
+            "strategy_id": "pullback_v2_setup",
+            "metric_name": "rows_after_filter",
+            "target_value": ">=40",
+            "threshold_rule": "search-gate",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 62,
+            "strategy_id": "pullback_v2_setup",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 70,
+            "strategy_id": "pullback_v2_setup",
+            "metric_name": "alignment",
+            "trigger_rule": "runtime and paper disagree",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "AUDIT",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "pullback_setup",
+      "name": "Pullback setup",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "setup",
+      "purpose": "Enter retracements inside trend context.",
+      "business_hypothesis": "Pullback entries improve fill quality but require cleaner context control.",
+      "status_state": "partial",
+      "status_pct": 50,
+      "operational_status": "shadow",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"pullback\", \"entry\", \"setup\"]",
+      "notes": "Exists in multiple forms (`Pullback`, `PullbackV2`) and needs consolidation.",
+      "last_reviewed_at": "2026-03-10T14:48:23.034128+00:00",
+      "created_at": "2026-03-10T10:41:52.246308+00:00",
+      "updated_at": "2026-03-10T14:48:23.034128+00:00",
+      "tags": [
+        "pullback",
+        "entry",
+        "setup"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 61,
+            "strategy_id": "pullback_setup",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\main.py\", \"D:\\\\crypto-bot\\\\core\\\\ideas.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.034128+00:00",
+            "created_at": "2026-03-10T14:48:23.034128+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 72,
+            "strategy_id": "pullback_setup",
+            "component_name": "pullback_signal",
+            "component_category": "setup",
+            "description": "Legacy pullback setup in runtime and idea layer",
+            "status_state": "partial",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 136,
+            "strategy_id": "pullback_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\main.py",
+            "role": "runtime",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 137,
+            "strategy_id": "pullback_setup",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\core\\ideas.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 90,
+            "strategy_id": "pullback_setup",
+            "metric_name": "trades_executed",
+            "target_value": ">=20",
+            "threshold_rule": "sample-size",
+            "notes": ""
+          },
+          {
+            "id": 91,
+            "strategy_id": "pullback_setup",
+            "metric_name": "max_drawdown_pct",
+            "target_value": ">=-15",
+            "threshold_rule": "safety",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 61,
+            "strategy_id": "pullback_setup",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 69,
+            "strategy_id": "pullback_setup",
+            "metric_name": "shadow_logic",
+            "trigger_rule": "duplicate pullback logic persists",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "AUDIT",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "concentration_check",
+      "name": "Concentration check",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "validation_tooling",
+      "purpose": "Reject fragile edge dominated by a few symbols or outlier trades.",
+      "business_hypothesis": "Healthy edge should not be monopolized by a tiny subset of symbols/trades.",
+      "status_state": "complete",
+      "status_pct": 100,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"concentration\", \"top3\", \"outliers\", \"robustness\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.063344+00:00",
+      "created_at": "2026-03-10T10:41:52.277349+00:00",
+      "updated_at": "2026-03-10T14:48:23.063344+00:00",
+      "tags": [
+        "concentration",
+        "top3",
+        "outliers",
+        "robustness"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 70,
+            "strategy_id": "concentration_check",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\scripts\\\\concentration_check.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.063344+00:00",
+            "created_at": "2026-03-10T14:48:23.063344+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 81,
+            "strategy_id": "concentration_check",
+            "component_name": "top3_share",
+            "component_category": "validation_tooling",
+            "description": "Symbol concentration diagnostics",
+            "status_state": "complete",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 156,
+            "strategy_id": "concentration_check",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\concentration_check.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 103,
+            "strategy_id": "concentration_check",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "promotion",
+            "notes": ""
+          },
+          {
+            "id": 104,
+            "strategy_id": "concentration_check",
+            "metric_name": "top5_trades_pct",
+            "target_value": "<=80",
+            "threshold_rule": "watch",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 70,
+            "strategy_id": "concentration_check",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 79,
+            "strategy_id": "concentration_check",
+            "metric_name": "top3_share_pct",
+            "trigger_rule": "top3_share_pct > 70",
+            "reevaluation_cadence": "6h",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "micro_autoresearch",
+      "name": "Micro autoresearch",
+      "repo": "crypto-bot",
+      "bot": "crypto-bot",
+      "category": "validation_tooling",
+      "purpose": "Run tiny offline sweeps to invalidate fragile parameter candidates quickly.",
+      "business_hypothesis": "A microscopic search tool can expose false-positive parameter winners without touching core logic.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"micro_autoresearch\", \"search\", \"offline\", \"sweep\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.071121+00:00",
+      "created_at": "2026-03-10T10:41:52.284628+00:00",
+      "updated_at": "2026-03-10T14:48:23.071121+00:00",
+      "tags": [
+        "micro_autoresearch",
+        "search",
+        "offline",
+        "sweep"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 72,
+            "strategy_id": "micro_autoresearch",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\crypto-bot\\\\scripts\\\\micro_autoresearch.py\", \"D:\\\\crypto-bot\\\\configs\\\\search_space.yaml\"]",
+            "reviewed_at": "2026-03-10T14:48:23.071121+00:00",
+            "created_at": "2026-03-10T14:48:23.071121+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 83,
+            "strategy_id": "micro_autoresearch",
+            "component_name": "search_space",
+            "component_category": "validation_tooling",
+            "description": "Small parameter grid",
+            "status_state": "functional",
+            "notes": ""
+          },
+          {
+            "id": 84,
+            "strategy_id": "micro_autoresearch",
+            "component_name": "hard_gates",
+            "component_category": "validation_tooling",
+            "description": "Reject small/concentrated samples",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 160,
+            "strategy_id": "micro_autoresearch",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\scripts\\micro_autoresearch.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 161,
+            "strategy_id": "micro_autoresearch",
+            "repo": "crypto-bot",
+            "file_path": "D:\\crypto-bot\\configs\\search_space.yaml",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 106,
+            "strategy_id": "micro_autoresearch",
+            "metric_name": "trades_executed",
+            "target_value": ">=20",
+            "threshold_rule": "gate",
+            "notes": ""
+          },
+          {
+            "id": 107,
+            "strategy_id": "micro_autoresearch",
+            "metric_name": "rows_after_filter",
+            "target_value": ">=40",
+            "threshold_rule": "gate",
+            "notes": ""
+          },
+          {
+            "id": 108,
+            "strategy_id": "micro_autoresearch",
+            "metric_name": "top3_share_pct",
+            "target_value": "<=70",
+            "threshold_rule": "gate",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 72,
+            "strategy_id": "micro_autoresearch",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 81,
+            "strategy_id": "micro_autoresearch",
+            "metric_name": "score",
+            "trigger_rule": "no valid configs across runs",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation_battery",
+      "name": "Validation battery",
+      "repo": "shared",
+      "bot": "shared",
+      "category": "validation_tooling",
+      "purpose": "Run replay + cost + concentration batteries and emit structured verdicts.",
+      "business_hypothesis": "Repeated, structured validation beats ad-hoc terminal interpretation.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"validation_battery\", \"recipe_runner\", \"verdict\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.066415+00:00",
+      "created_at": "2026-03-10T10:41:52.280940+00:00",
+      "updated_at": "2026-03-10T14:48:23.066415+00:00",
+      "tags": [
+        "validation_battery",
+        "recipe_runner",
+        "verdict"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 71,
+            "strategy_id": "validation_battery",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\automation-mvp\\\\recipe_runner.py\", \"D:\\\\automation-mvp\\\\recipes\\\\crypto_phaseb_riskoff.json\", \"D:\\\\automation-mvp\\\\recipes\\\\crypto_phaseb_rangechop.json\"]",
+            "reviewed_at": "2026-03-10T14:48:23.066415+00:00",
+            "created_at": "2026-03-10T14:48:23.066415+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 82,
+            "strategy_id": "validation_battery",
+            "component_name": "recipe_runner",
+            "component_category": "validation_tooling",
+            "description": "Sequential command runner with extractors/rules",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 157,
+            "strategy_id": "validation_battery",
+            "repo": "automation-mvp",
+            "file_path": "D:\\automation-mvp\\recipe_runner.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 158,
+            "strategy_id": "validation_battery",
+            "repo": "automation-mvp",
+            "file_path": "D:\\automation-mvp\\recipes\\crypto_phaseb_riskoff.json",
+            "role": "recipe",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 159,
+            "strategy_id": "validation_battery",
+            "repo": "automation-mvp",
+            "file_path": "D:\\automation-mvp\\recipes\\crypto_phaseb_rangechop.json",
+            "role": "recipe",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 105,
+            "strategy_id": "validation_battery",
+            "metric_name": "verdict",
+            "target_value": "PROMOTE/WARN/REJECT",
+            "threshold_rule": "output",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 71,
+            "strategy_id": "validation_battery",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 80,
+            "strategy_id": "validation_battery",
+            "metric_name": "recipe_health",
+            "trigger_rule": "recipe failures or stale metrics",
+            "reevaluation_cadence": "daily",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "event_candidate_stamp",
+      "name": "Event candidate stamp",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "quality_filter",
+      "purpose": "Tag upstream events as strategy candidates using config-driven filters.",
+      "business_hypothesis": "Pre-stamping candidates reduces downstream noise while preserving cohort signal.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"candidate\", \"omb\", \"roles\", \"strict_cluster\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.084308+00:00",
+      "created_at": "2026-03-10T10:41:52.298579+00:00",
+      "updated_at": "2026-03-10T14:48:23.084308+00:00",
+      "tags": [
+        "candidate",
+        "omb",
+        "roles",
+        "strict_cluster"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 76,
+            "strategy_id": "event_candidate_stamp",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\ingest\\\\build_events_job.py\", \"D:\\\\stocks-bot\\\\src\\\\config.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.084308+00:00",
+            "created_at": "2026-03-10T14:48:23.084308+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 90,
+            "strategy_id": "event_candidate_stamp",
+            "component_name": "candidate_stamp",
+            "component_category": "quality_filter",
+            "description": "Config-driven event-level candidate flag",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 170,
+            "strategy_id": "event_candidate_stamp",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\ingest\\build_events_job.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 171,
+            "strategy_id": "event_candidate_stamp",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\config.py",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 114,
+            "strategy_id": "event_candidate_stamp",
+            "metric_name": "candidate_count",
+            "target_value": "stable",
+            "threshold_rule": "operational",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 76,
+            "strategy_id": "event_candidate_stamp",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 85,
+            "strategy_id": "event_candidate_stamp",
+            "metric_name": "candidate_count",
+            "trigger_rule": "candidate count collapses",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic_risk_gate",
+      "name": "Generic risk gate",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "quality_filter",
+      "purpose": "Apply rule-based risk rejection on liquidity, spread, price, and event features.",
+      "business_hypothesis": "A generic risk gate provides a defensible baseline but may now be secondary to winner cohorts.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"risk_gate\", \"liquidity\", \"spread\", \"baseline\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.087413+00:00",
+      "created_at": "2026-03-10T10:41:52.302428+00:00",
+      "updated_at": "2026-03-10T14:48:23.087413+00:00",
+      "tags": [
+        "risk_gate",
+        "liquidity",
+        "spread",
+        "baseline"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 77,
+            "strategy_id": "generic_risk_gate",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\scoring\\\\risk_gate.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.087413+00:00",
+            "created_at": "2026-03-10T14:48:23.087413+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 91,
+            "strategy_id": "generic_risk_gate",
+            "component_name": "rule_risk_gate",
+            "component_category": "quality_filter",
+            "description": "Legacy baseline risk gate",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 172,
+            "strategy_id": "generic_risk_gate",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\scoring\\risk_gate.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 115,
+            "strategy_id": "generic_risk_gate",
+            "metric_name": "pass_rate",
+            "target_value": "explainable",
+            "threshold_rule": "governance",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 77,
+            "strategy_id": "generic_risk_gate",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 86,
+            "strategy_id": "generic_risk_gate",
+            "metric_name": "relevance",
+            "trigger_rule": "winner path bypasses gate",
+            "reevaluation_cadence": "monthly",
+            "trigger_action": "AUDIT",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic_ranker",
+      "name": "Generic ranker",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "ranking",
+      "purpose": "Rank generic insider ideas via rule-based scoring.",
+      "business_hypothesis": "Rule-based ranking is useful as a baseline but must remain explainable and auditable.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"ranker\", \"scoring\", \"ideas\", \"baseline\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.090756+00:00",
+      "created_at": "2026-03-10T10:41:52.306282+00:00",
+      "updated_at": "2026-03-10T14:48:23.090756+00:00",
+      "tags": [
+        "ranker",
+        "scoring",
+        "ideas",
+        "baseline"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 78,
+            "strategy_id": "generic_ranker",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\scoring\\\\ranker.py\", \"D:\\\\stocks-bot\\\\src\\\\scoring\\\\explain.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.090756+00:00",
+            "created_at": "2026-03-10T14:48:23.090756+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 92,
+            "strategy_id": "generic_ranker",
+            "component_name": "ranker",
+            "component_category": "ranking",
+            "description": "Generic score/rank baseline",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 173,
+            "strategy_id": "generic_ranker",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\scoring\\ranker.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 174,
+            "strategy_id": "generic_ranker",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\scoring\\explain.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 116,
+            "strategy_id": "generic_ranker",
+            "metric_name": "precision",
+            "target_value": "improve vs baseline",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 78,
+            "strategy_id": "generic_ranker",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 87,
+            "strategy_id": "generic_ranker",
+            "metric_name": "explainability",
+            "trigger_rule": "scoring cannot be explained",
+            "reevaluation_cadence": "monthly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "strategy_v1_runtime_filter",
+      "name": "Strategy V1 runtime filter",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "runtime_filter",
+      "purpose": "Operational paper-trading filter used by paper_job and related commands.",
+      "business_hypothesis": "A simple runtime filter can support paper accounting even if research moves toward winner cohorts.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"strategy_v1\", \"paper\", \"runtime\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.094097+00:00",
+      "created_at": "2026-03-10T10:41:52.309632+00:00",
+      "updated_at": "2026-03-10T14:48:23.094097+00:00",
+      "tags": [
+        "strategy_v1",
+        "paper",
+        "runtime"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 79,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\strategy\\\\strategy_v1.py\", \"D:\\\\stocks-bot\\\\src\\\\strategy\\\\paper_job.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.094097+00:00",
+            "created_at": "2026-03-10T14:48:23.094097+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 93,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "component_name": "runtime_filter",
+            "component_category": "runtime_filter",
+            "description": "Paper-trading candidate filter",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 175,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\strategy\\strategy_v1.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 176,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\strategy\\paper_job.py",
+            "role": "runtime",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 117,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "metric_name": "candidate_count",
+            "target_value": "stable",
+            "threshold_rule": "operational",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 79,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 88,
+            "strategy_id": "strategy_v1_runtime_filter",
+            "metric_name": "alignment",
+            "trigger_rule": "runtime filter diverges from canonical cohorts",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "AUDIT",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "sec_form4_ingest",
+      "name": "SEC Form 4 ingest",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "signal_source",
+      "purpose": "Build event-level insider transaction signals from Form 4 filings.",
+      "business_hypothesis": "Reliable insider-event ingest is the base signal source for all downstream strategy layers.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"sec\", \"form4\", \"ingest\", \"events\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.081277+00:00",
+      "created_at": "2026-03-10T10:41:52.294921+00:00",
+      "updated_at": "2026-03-10T14:48:23.081277+00:00",
+      "tags": [
+        "sec",
+        "form4",
+        "ingest",
+        "events"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 75,
+            "strategy_id": "sec_form4_ingest",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\ingest\\\\build_events_job.py\", \"D:\\\\stocks-bot\\\\src\\\\features\\\\event_aggregates.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.081277+00:00",
+            "created_at": "2026-03-10T14:48:23.081277+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 89,
+            "strategy_id": "sec_form4_ingest",
+            "component_name": "event_build",
+            "component_category": "signal_source",
+            "description": "Form 4 -> issuer-day event layer",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 168,
+            "strategy_id": "sec_form4_ingest",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\ingest\\build_events_job.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 169,
+            "strategy_id": "sec_form4_ingest",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\features\\event_aggregates.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 112,
+            "strategy_id": "sec_form4_ingest",
+            "metric_name": "coverage",
+            "target_value": "maintain",
+            "threshold_rule": "operational",
+            "notes": ""
+          },
+          {
+            "id": 113,
+            "strategy_id": "sec_form4_ingest",
+            "metric_name": "freshness",
+            "target_value": "maintain",
+            "threshold_rule": "operational",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 75,
+            "strategy_id": "sec_form4_ingest",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 84,
+            "strategy_id": "sec_form4_ingest",
+            "metric_name": "coverage",
+            "trigger_rule": "coverage degrades materially",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "c10_candidate_audit",
+      "name": "C10 candidate audit",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "validation_tooling",
+      "purpose": "Audit operational candidate set for the current winner cohort.",
+      "business_hypothesis": "Forward candidate audit is necessary before trusting paper/live promotion.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"c10\", \"candidate_audit\", \"paper_eval\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.115081+00:00",
+      "created_at": "2026-03-10T10:41:52.331385+00:00",
+      "updated_at": "2026-03-10T14:48:23.115081+00:00",
+      "tags": [
+        "c10",
+        "candidate_audit",
+        "paper_eval"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 85,
+            "strategy_id": "c10_candidate_audit",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\backtest\\\\c10_candidate_audit.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.115081+00:00",
+            "created_at": "2026-03-10T14:48:23.115081+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 100,
+            "strategy_id": "c10_candidate_audit",
+            "component_name": "candidate_audit",
+            "component_category": "validation_tooling",
+            "description": "Operational audit of winner cohort candidates",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 187,
+            "strategy_id": "c10_candidate_audit",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\c10_candidate_audit.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 124,
+            "strategy_id": "c10_candidate_audit",
+            "metric_name": "candidate_quality",
+            "target_value": "stable",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 85,
+            "strategy_id": "c10_candidate_audit",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 94,
+            "strategy_id": "c10_candidate_audit",
+            "metric_name": "candidate_quality",
+            "trigger_rule": "audit quality weakens",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "WATCH",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "cohort_baseline_validation",
+      "name": "Cohort baseline validation",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "validation_tooling",
+      "purpose": "Validate winner cohorts under constrained equal-weight baselines.",
+      "business_hypothesis": "Winner cohorts must outperform simple baselines to be meaningful.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"cohort_baseline\", \"validation\", \"equal_weight\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.107594+00:00",
+      "created_at": "2026-03-10T10:41:52.324190+00:00",
+      "updated_at": "2026-03-10T14:48:23.107594+00:00",
+      "tags": [
+        "cohort_baseline",
+        "validation",
+        "equal_weight"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 83,
+            "strategy_id": "cohort_baseline_validation",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\backtest\\\\cohort_baseline.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.107594+00:00",
+            "created_at": "2026-03-10T14:48:23.107594+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 98,
+            "strategy_id": "cohort_baseline_validation",
+            "component_name": "baseline_eval",
+            "component_category": "validation_tooling",
+            "description": "Equal-weight cohort baseline validator",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 185,
+            "strategy_id": "cohort_baseline_validation",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\cohort_baseline.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 122,
+            "strategy_id": "cohort_baseline_validation",
+            "metric_name": "20d_excess",
+            "target_value": "> baseline",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 83,
+            "strategy_id": "cohort_baseline_validation",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 92,
+            "strategy_id": "cohort_baseline_validation",
+            "metric_name": "20d_excess",
+            "trigger_rule": "baseline edge disappears",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "legacy_sim_eval_stack",
+      "name": "Legacy ideas sim eval stack",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "validation_tooling",
+      "purpose": "Older generic ideas -> sim -> eval pipeline kept as baseline/legacy path.",
+      "business_hypothesis": "Legacy stack may remain useful as baseline but is no longer the canonical operating layer.",
+      "status_state": "shadow",
+      "status_pct": 25,
+      "operational_status": "shadow",
+      "current_verdict": "FREEZE",
+      "owner": "mihai",
+      "tags_json": "[\"legacy\", \"ideas\", \"sim\", \"eval\", \"shadow\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.121222+00:00",
+      "created_at": "2026-03-10T10:41:52.338237+00:00",
+      "updated_at": "2026-03-10T14:48:23.121222+00:00",
+      "tags": [
+        "legacy",
+        "ideas",
+        "sim",
+        "eval",
+        "shadow"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 87,
+            "strategy_id": "legacy_sim_eval_stack",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "FREEZE",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\sim\\\\sim_job.py\", \"D:\\\\stocks-bot\\\\src\\\\eval\\\\eval_job.py\", \"D:\\\\stocks-bot\\\\src\\\\ideas\\\\idea_job.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.121222+00:00",
+            "created_at": "2026-03-10T14:48:23.121222+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 102,
+            "strategy_id": "legacy_sim_eval_stack",
+            "component_name": "legacy_pipeline",
+            "component_category": "validation_tooling",
+            "description": "Older research path",
+            "status_state": "shadow",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 190,
+            "strategy_id": "legacy_sim_eval_stack",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\sim\\sim_job.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 191,
+            "strategy_id": "legacy_sim_eval_stack",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\eval\\eval_job.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          },
+          {
+            "id": 192,
+            "strategy_id": "legacy_sim_eval_stack",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\ideas\\idea_job.py",
+            "role": "implementation",
+            "is_shadow": 1,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 126,
+            "strategy_id": "legacy_sim_eval_stack",
+            "metric_name": "relevance",
+            "target_value": "baseline only",
+            "threshold_rule": "audit",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 87,
+            "strategy_id": "legacy_sim_eval_stack",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"FREEZE\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "FREEZE"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 96,
+            "strategy_id": "legacy_sim_eval_stack",
+            "metric_name": "shadow_logic",
+            "trigger_rule": "legacy stack still drives decisions",
+            "reevaluation_cadence": "monthly",
+            "trigger_action": "REMOVE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "paper_eval_accounting",
+      "name": "Paper eval accounting",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "validation_tooling",
+      "purpose": "Operational paper-style accounting engine for forward evaluation.",
+      "business_hypothesis": "Accounting correctness is required before any forward result can be trusted.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"paper_eval\", \"accounting\", \"forward\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.118262+00:00",
+      "created_at": "2026-03-10T10:41:52.334917+00:00",
+      "updated_at": "2026-03-10T14:48:23.118262+00:00",
+      "tags": [
+        "paper_eval",
+        "accounting",
+        "forward"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 86,
+            "strategy_id": "paper_eval_accounting",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\strategy\\\\paper_job.py\", \"D:\\\\stocks-bot\\\\tests\\\\test_paper_eval_accounting.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.118262+00:00",
+            "created_at": "2026-03-10T14:48:23.118262+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 101,
+            "strategy_id": "paper_eval_accounting",
+            "component_name": "paper_accounting",
+            "component_category": "validation_tooling",
+            "description": "Forward paper accounting engine",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 188,
+            "strategy_id": "paper_eval_accounting",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\strategy\\paper_job.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 189,
+            "strategy_id": "paper_eval_accounting",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\tests\\test_paper_eval_accounting.py",
+            "role": "test",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 125,
+            "strategy_id": "paper_eval_accounting",
+            "metric_name": "accounting_integrity",
+            "target_value": "pass",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 86,
+            "strategy_id": "paper_eval_accounting",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 95,
+            "strategy_id": "paper_eval_accounting",
+            "metric_name": "accounting_integrity",
+            "trigger_rule": "paper accounting drift/failures",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "winner_sensitivity_validation",
+      "name": "Winner sensitivity validation",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "validation_tooling",
+      "purpose": "Stress-test winner cohorts under slots/cost/candidate-cap variations.",
+      "business_hypothesis": "Robust winner cohorts should survive realistic operational perturbations.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "KEEP",
+      "owner": "mihai",
+      "tags_json": "[\"winner_sensitivity\", \"validation\", \"costs\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.111083+00:00",
+      "created_at": "2026-03-10T10:41:52.327559+00:00",
+      "updated_at": "2026-03-10T14:48:23.111083+00:00",
+      "tags": [
+        "winner_sensitivity",
+        "validation",
+        "costs"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 84,
+            "strategy_id": "winner_sensitivity_validation",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "KEEP",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\backtest\\\\winner_sensitivity.py\"]",
+            "reviewed_at": "2026-03-10T14:48:23.111083+00:00",
+            "created_at": "2026-03-10T14:48:23.111083+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 99,
+            "strategy_id": "winner_sensitivity_validation",
+            "component_name": "sensitivity_grid",
+            "component_category": "validation_tooling",
+            "description": "Operational sensitivity sweeps",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 186,
+            "strategy_id": "winner_sensitivity_validation",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\winner_sensitivity.py",
+            "role": "implementation",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 123,
+            "strategy_id": "winner_sensitivity_validation",
+            "metric_name": "cost_survival",
+            "target_value": "positive",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 84,
+            "strategy_id": "winner_sensitivity_validation",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "block",
+            "rule_config_json": "{\"verdict\": \"KEEP\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "KEEP"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 93,
+            "strategy_id": "winner_sensitivity_validation",
+            "metric_name": "cost_survival",
+            "trigger_rule": "cost sensitivity degrades",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "a20_reference",
+      "name": "A20 premium reference",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "winner_cohort",
+      "purpose": "Premium/reference cohort used as upper benchmark, not default operational target.",
+      "business_hypothesis": "A20 serves as reference rather than the immediate practical profile.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"a20\", \"premium\", \"benchmark\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.104380+00:00",
+      "created_at": "2026-03-10T10:41:52.320712+00:00",
+      "updated_at": "2026-03-10T14:48:23.104380+00:00",
+      "tags": [
+        "a20",
+        "premium",
+        "benchmark"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 82,
+            "strategy_id": "a20_reference",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\configs\\\\canonical_profiles.yaml\", \"D:\\\\stocks-bot\\\\docs\\\\WINNER_VERDICT.md\"]",
+            "reviewed_at": "2026-03-10T14:48:23.104380+00:00",
+            "created_at": "2026-03-10T14:48:23.104380+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 97,
+            "strategy_id": "a20_reference",
+            "component_name": "a20_reference",
+            "component_category": "winner_cohort",
+            "description": "Premium reference cohort",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 183,
+            "strategy_id": "a20_reference",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\configs\\canonical_profiles.yaml",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 184,
+            "strategy_id": "a20_reference",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\docs\\WINNER_VERDICT.md",
+            "role": "decision-record",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 121,
+            "strategy_id": "a20_reference",
+            "metric_name": "benchmark_gap",
+            "target_value": "track vs c10",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 82,
+            "strategy_id": "a20_reference",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 91,
+            "strategy_id": "a20_reference",
+            "metric_name": "benchmark_gap",
+            "trigger_rule": "A20 no longer informative",
+            "reevaluation_cadence": "monthly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "b20_cohort",
+      "name": "B20 winner cohort",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "winner_cohort",
+      "purpose": "Backup/reference winner cohort compared against C10.",
+      "business_hypothesis": "B20 may remain a valid benchmark even if not the primary operating profile.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "supporting",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"b20\", \"winner\", \"cohort\", \"benchmark\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.100939+00:00",
+      "created_at": "2026-03-10T10:41:52.317081+00:00",
+      "updated_at": "2026-03-10T14:48:23.100939+00:00",
+      "tags": [
+        "b20",
+        "winner",
+        "cohort",
+        "benchmark"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 81,
+            "strategy_id": "b20_cohort",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\backtest\\\\winner_sensitivity.py\", \"D:\\\\stocks-bot\\\\configs\\\\canonical_profiles.yaml\"]",
+            "reviewed_at": "2026-03-10T14:48:23.100939+00:00",
+            "created_at": "2026-03-10T14:48:23.100939+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 96,
+            "strategy_id": "b20_cohort",
+            "component_name": "b20_profile",
+            "component_category": "winner_cohort",
+            "description": "Backup/reference cohort",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 181,
+            "strategy_id": "b20_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\winner_sensitivity.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 182,
+            "strategy_id": "b20_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\configs\\canonical_profiles.yaml",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 120,
+            "strategy_id": "b20_cohort",
+            "metric_name": "baseline_quality",
+            "target_value": "benchmark",
+            "threshold_rule": "validation",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 81,
+            "strategy_id": "b20_cohort",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 90,
+            "strategy_id": "b20_cohort",
+            "metric_name": "benchmark_value",
+            "trigger_rule": "no longer useful as benchmark",
+            "reevaluation_cadence": "monthly",
+            "trigger_action": "FREEZE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "c10_cohort",
+      "name": "C10 winner cohort",
+      "repo": "stocks-bot",
+      "bot": "stocks-bot",
+      "category": "winner_cohort",
+      "purpose": "Primary operational candidate cohort for current paper validation.",
+      "business_hypothesis": "Officer/director cohort with low OMB threshold provides better operational candidate quality.",
+      "status_state": "functional",
+      "status_pct": 75,
+      "operational_status": "active",
+      "current_verdict": "WATCH",
+      "owner": "mihai",
+      "tags_json": "[\"c10\", \"winner\", \"cohort\", \"paper\"]",
+      "notes": "",
+      "last_reviewed_at": "2026-03-10T14:48:23.097790+00:00",
+      "created_at": "2026-03-10T10:41:52.313407+00:00",
+      "updated_at": "2026-03-10T14:48:23.097790+00:00",
+      "tags": [
+        "c10",
+        "winner",
+        "cohort",
+        "paper"
+      ],
+      "children": {
+        "versions": [
+          {
+            "id": 80,
+            "strategy_id": "c10_cohort",
+            "version": "v1",
+            "summary": "Seed import from current repo state",
+            "reason_for_change": "Initial canonical registry migration",
+            "metrics_before_json": "{}",
+            "metrics_after_json": "{}",
+            "decision": "WATCH",
+            "files_changed_json": "[\"D:\\\\stocks-bot\\\\src\\\\backtest\\\\cohort_baseline.py\", \"D:\\\\stocks-bot\\\\src\\\\backtest\\\\c10_candidate_audit.py\", \"D:\\\\stocks-bot\\\\configs\\\\canonical_profiles.yaml\", \"D:\\\\stocks-bot\\\\docs\\\\WINNER_VERDICT.md\"]",
+            "reviewed_at": "2026-03-10T14:48:23.097790+00:00",
+            "created_at": "2026-03-10T14:48:23.097790+00:00"
+          }
+        ],
+        "components": [
+          {
+            "id": 94,
+            "strategy_id": "c10_cohort",
+            "component_name": "c10_profile",
+            "component_category": "winner_cohort",
+            "description": "Officer/director canonical cohort",
+            "status_state": "functional",
+            "notes": ""
+          },
+          {
+            "id": 95,
+            "strategy_id": "c10_cohort",
+            "component_name": "paper_eval",
+            "component_category": "validation_tooling",
+            "description": "C10 paper eval path",
+            "status_state": "functional",
+            "notes": ""
+          }
+        ],
+        "files": [
+          {
+            "id": 177,
+            "strategy_id": "c10_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\cohort_baseline.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 178,
+            "strategy_id": "c10_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\src\\backtest\\c10_candidate_audit.py",
+            "role": "validation",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 179,
+            "strategy_id": "c10_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\configs\\canonical_profiles.yaml",
+            "role": "configuration",
+            "is_shadow": 0,
+            "notes": ""
+          },
+          {
+            "id": 180,
+            "strategy_id": "c10_cohort",
+            "repo": "stocks-bot",
+            "file_path": "D:\\stocks-bot\\docs\\WINNER_VERDICT.md",
+            "role": "decision-record",
+            "is_shadow": 0,
+            "notes": ""
+          }
+        ],
+        "metrics": [
+          {
+            "id": 118,
+            "strategy_id": "c10_cohort",
+            "metric_name": "paper_eval_quality",
+            "target_value": "maintain",
+            "threshold_rule": "promotion",
+            "notes": ""
+          },
+          {
+            "id": 119,
+            "strategy_id": "c10_cohort",
+            "metric_name": "candidate_count",
+            "target_value": "maintain",
+            "threshold_rule": "operational",
+            "notes": ""
+          }
+        ],
+        "rules": [
+          {
+            "id": 80,
+            "strategy_id": "c10_cohort",
+            "rule_name": "default_verdict_rule",
+            "rule_kind": "governance",
+            "severity": "warn",
+            "rule_config_json": "{\"verdict\": \"WATCH\"}",
+            "notes": "Seeded governance rule",
+            "rule_config": {
+              "verdict": "WATCH"
+            }
+          }
+        ],
+        "watchlist": [
+          {
+            "id": 89,
+            "strategy_id": "c10_cohort",
+            "metric_name": "paper_eval_quality",
+            "trigger_rule": "paper candidate quality degrades",
+            "reevaluation_cadence": "weekly",
+            "trigger_action": "TUNE",
+            "active": 1,
+            "notes": ""
+          }
+        ]
+      }
+    }
+  ]
+}
