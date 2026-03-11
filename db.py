@@ -25,6 +25,14 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    existing = {str(r["name"]) for r in rows}
+    if column_name in existing:
+        return
+    conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+
+
 @contextmanager
 def get_conn() -> Iterable[sqlite3.Connection]:
     conn = _connect()
@@ -525,8 +533,202 @@ def init_db() -> None:
                 payload_json
             FROM raw_lifecycle_events
             WHERE event_type='outcome';
+
+            -- -------------------------------------------------------
+            -- Edge Search Orchestrator tables
+            -- -------------------------------------------------------
+
+            CREATE TABLE IF NOT EXISTS search_cases (
+                case_id TEXT PRIMARY KEY,
+                case_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                idempotency_key TEXT UNIQUE,
+                status TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                priority TEXT NOT NULL DEFAULT 'medium',
+                repo_scope TEXT NOT NULL,
+                market TEXT NOT NULL,
+                venue TEXT,
+                instrument_scope TEXT,
+                universe_id TEXT,
+                timeframe TEXT,
+                strategy_id TEXT,
+                canonical_strategy_ref TEXT,
+                registry_binding_status TEXT NOT NULL DEFAULT 'unbound',
+                family TEXT NOT NULL,
+                variant_seed_id TEXT,
+                profile_id TEXT,
+                hypothesis TEXT NOT NULL,
+                objective_type TEXT NOT NULL,
+                objective_metric TEXT,
+                objective_threshold REAL,
+                planner_mode TEXT,
+                planner_agent TEXT,
+                reviewer_agent TEXT,
+                created_from TEXT NOT NULL,
+                source_ref TEXT,
+                search_budget_json TEXT NOT NULL,
+                risk_budget_json TEXT NOT NULL,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                current_hypothesis_version INTEGER NOT NULL DEFAULT 1,
+                latest_manifest_id TEXT,
+                latest_verdict_id TEXT,
+                final_outcome TEXT,
+                opened_at TEXT NOT NULL,
+                closed_at TEXT,
+                owner TEXT NOT NULL,
+                notes TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS experiment_manifests (
+                manifest_id TEXT PRIMARY KEY,
+                case_id TEXT NOT NULL,
+                idempotency_key TEXT UNIQUE,
+                manifest_version INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL,
+                execution_status TEXT NOT NULL DEFAULT 'ready',
+                claimed_by TEXT,
+                claimed_at TEXT,
+                last_run_id TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                parent_manifest_id TEXT,
+                derived_from_verdict_id TEXT,
+                derivation_reason TEXT,
+                repo TEXT NOT NULL,
+                adapter_type TEXT NOT NULL,
+                entrypoint TEXT NOT NULL,
+                strategy_identity_json TEXT NOT NULL,
+                run_context_template_json TEXT NOT NULL,
+                dataset_spec_json TEXT NOT NULL,
+                execution_spec_json TEXT NOT NULL,
+                cost_model_json TEXT NOT NULL,
+                gates_json TEXT NOT NULL,
+                planner_hints_json TEXT NOT NULL DEFAULT '{}',
+                artifacts_json TEXT NOT NULL DEFAULT '{}',
+                param_diff_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                created_by TEXT NOT NULL,
+                approved_by TEXT,
+                notes TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(case_id) REFERENCES search_cases(case_id),
+                FOREIGN KEY(parent_manifest_id) REFERENCES experiment_manifests(manifest_id),
+                FOREIGN KEY(derived_from_verdict_id) REFERENCES edge_verdicts(verdict_id),
+                UNIQUE(case_id, manifest_version)
+            );
+
+            CREATE TABLE IF NOT EXISTS edge_verdicts (
+                verdict_id TEXT PRIMARY KEY,
+                case_id TEXT NOT NULL,
+                manifest_id TEXT NOT NULL,
+                run_id TEXT,
+                verdict_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                decision_reason TEXT NOT NULL,
+                confidence REAL,
+                verdict_score REAL,
+                metrics_snapshot_json TEXT NOT NULL,
+                gate_results_json TEXT NOT NULL,
+                artifacts_root TEXT,
+                dominant_failure_mode TEXT,
+                policy_selected TEXT,
+                mutation_recommendation_json TEXT NOT NULL DEFAULT '{}',
+                promotion_state_json TEXT NOT NULL DEFAULT '{}',
+                next_action TEXT,
+                next_action_payload_json TEXT NOT NULL DEFAULT '{}',
+                postmortem_summary_json TEXT NOT NULL DEFAULT '{}',
+                review_mode TEXT,
+                reviewed_by TEXT,
+                approved_by TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(case_id) REFERENCES search_cases(case_id),
+                FOREIGN KEY(manifest_id) REFERENCES experiment_manifests(manifest_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS case_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                case_id TEXT NOT NULL,
+                manifest_id TEXT,
+                verdict_id TEXT,
+                event_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(case_id) REFERENCES search_cases(case_id),
+                FOREIGN KEY(manifest_id) REFERENCES experiment_manifests(manifest_id),
+                FOREIGN KEY(verdict_id) REFERENCES edge_verdicts(verdict_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS telegram_decisions (
+                approval_id TEXT PRIMARY KEY,
+                case_id TEXT NOT NULL,
+                manifest_id TEXT,
+                run_id TEXT,
+                decision_scope TEXT NOT NULL DEFAULT 'research_case',
+                action TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                message_id TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(case_id) REFERENCES search_cases(case_id),
+                FOREIGN KEY(manifest_id) REFERENCES experiment_manifests(manifest_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_search_cases_status ON search_cases(status);
+            CREATE INDEX IF NOT EXISTS idx_search_cases_family ON search_cases(family);
+            CREATE INDEX IF NOT EXISTS idx_search_cases_strategy_id ON search_cases(strategy_id);
+            CREATE INDEX IF NOT EXISTS idx_search_cases_repo_scope ON search_cases(repo_scope);
+            CREATE INDEX IF NOT EXISTS idx_search_cases_stage ON search_cases(stage);
+            CREATE INDEX IF NOT EXISTS idx_experiment_manifests_case_id ON experiment_manifests(case_id);
+            CREATE INDEX IF NOT EXISTS idx_experiment_manifests_status ON experiment_manifests(status);
+            CREATE INDEX IF NOT EXISTS idx_experiment_manifests_adapter_type ON experiment_manifests(adapter_type);
+            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_case_id ON edge_verdicts(case_id);
+            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_manifest_id ON edge_verdicts(manifest_id);
+            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_decision ON edge_verdicts(decision);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_edge_verdicts_one_final_per_case
+            ON edge_verdicts(case_id)
+            WHERE status='final';
+            CREATE INDEX IF NOT EXISTS idx_case_events_case_id ON case_events(case_id);
+            CREATE INDEX IF NOT EXISTS idx_telegram_decisions_case_id ON telegram_decisions(case_id);
+
+            -- Convenience views for edge search queries
+
+            CREATE VIEW IF NOT EXISTS active_cases_v AS
+            SELECT
+                sc.case_id, sc.title, sc.status, sc.stage, sc.priority,
+                sc.family, sc.strategy_id, sc.hypothesis, sc.market,
+                sc.owner, sc.opened_at,
+                ev.decision AS latest_decision,
+                ev.decision_reason AS latest_reason,
+                ev.created_at AS latest_verdict_at
+            FROM search_cases sc
+            LEFT JOIN edge_verdicts ev ON ev.verdict_id = sc.latest_verdict_id
+            WHERE sc.status IN ('proposed', 'approved', 'active', 'on_hold');
+
+            CREATE VIEW IF NOT EXISTS promotion_candidates_v AS
+            SELECT
+                ev.verdict_id, ev.case_id, ev.manifest_id, ev.decision,
+                ev.metrics_snapshot_json, ev.gate_results_json,
+                ev.promotion_state_json, ev.created_at,
+                sc.title, sc.family, sc.strategy_id, sc.market
+            FROM edge_verdicts ev
+            JOIN search_cases sc ON sc.case_id = ev.case_id
+            WHERE ev.decision = 'PROMOTE_TO_PAPER'
+              AND ev.status = 'final'
+              AND sc.latest_verdict_id = ev.verdict_id
+              AND sc.status NOT IN ('done', 'killed', 'archived')
+              AND COALESCE(json_extract(ev.gate_results_json, '$.min_trades_pass'), 0) = 1
+              AND COALESCE(json_extract(ev.gate_results_json, '$.cost_adjusted_edge_pass'), 0) = 1
+              AND COALESCE(json_extract(ev.gate_results_json, '$.walkforward_pass'), 0) = 1
+              AND COALESCE(json_extract(ev.gate_results_json, '$.leakage_check_pass'), 0) = 1;
             """
         )
+        _ensure_column(conn, "experiment_manifests", "execution_status", "TEXT NOT NULL DEFAULT 'ready'")
+        _ensure_column(conn, "experiment_manifests", "claimed_by", "TEXT")
+        _ensure_column(conn, "experiment_manifests", "claimed_at", "TEXT")
+        _ensure_column(conn, "experiment_manifests", "last_run_id", "TEXT")
+        _ensure_column(conn, "experiment_manifests", "attempt_count", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "experiment_manifests", "last_error", "TEXT")
 
 
 def insert_run(
@@ -1110,3 +1312,654 @@ def resolve_approval(
             """,
             (status, decision, decision_details, utc_now(), approval_id),
         )
+
+
+# -------------------------------------------------------
+# Edge Search Orchestrator – CRUD helpers
+# -------------------------------------------------------
+
+_VALID_CASE_STATUSES = frozenset(
+    {"proposed", "approved", "active", "on_hold", "blocked", "done", "killed", "archived"}
+)
+_VALID_CASE_STAGES = frozenset(
+    {"idea_intake", "manifest_ready", "running", "awaiting_verdict", "promotion_review", "paper_candidate", "closed"}
+)
+_VALID_REGISTRY_BINDING_STATUSES = frozenset({"unbound", "provisional", "registered", "rejected"})
+_VALID_VERDICT_DECISIONS = frozenset(
+    {
+        "REJECT_EDGE",
+        "MUTATE_WITH_POLICY",
+        "RETEST_OOS",
+        "RUN_BIGGER_SAMPLE",
+        "HOLD_FOR_MORE_DATA",
+        "PROMOTE_TO_PAPER",
+        "ARCHIVE_CASE",
+        "ASK_PREMIUM_REVIEW",
+    }
+)
+_TERMINAL_CASE_STATUSES = frozenset({"done", "killed", "archived"})
+_TERMINAL_CASE_STAGES = frozenset({"closed"})
+_ALLOWED_STAGE_TRANSITIONS = {
+    "idea_intake": {"manifest_ready", "running", "awaiting_verdict", "closed"},
+    "manifest_ready": {"running", "awaiting_verdict", "promotion_review", "paper_candidate", "closed"},
+    "running": {"awaiting_verdict", "manifest_ready", "promotion_review", "closed"},
+    "awaiting_verdict": {"manifest_ready", "promotion_review", "paper_candidate", "closed"},
+    "promotion_review": {"manifest_ready", "paper_candidate", "closed"},
+    "paper_candidate": {"promotion_review", "closed"},
+    "closed": set(),
+}
+_VALID_ADAPTER_TYPES = frozenset(
+    {
+        "research_loop",
+        "cohort_research",
+        "baseline_backtest",
+        "validation_battery",
+        "policy_benchmark",
+        "paper_replay",
+        "stocks_baseline_eval",
+    }
+)
+_VALID_MANIFEST_EXECUTION_STATUSES = frozenset(
+    {"ready", "claimed", "running", "completed", "failed", "awaiting_decision", "cancelled"}
+)
+
+
+def _json_col(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _ensure_allowed(value: str, allowed: set[str] | frozenset[str], field_name: str) -> None:
+    if value not in allowed:
+        raise ValueError(f"Invalid {field_name}: {value}")
+
+
+def _ensure_case_transition_allowed(current_stage: str, next_stage: str, *, force_transition: bool = False) -> None:
+    if current_stage == next_stage:
+        return
+    if force_transition:
+        return
+    allowed_targets = _ALLOWED_STAGE_TRANSITIONS.get(current_stage, set())
+    if next_stage not in allowed_targets:
+        raise ValueError(f"Invalid stage transition: {current_stage} -> {next_stage}")
+
+
+def create_search_case(
+    *,
+    case_id: str,
+    case_type: str,
+    title: str,
+    status: str,
+    stage: str,
+    family: str,
+    hypothesis: str,
+    objective_type: str,
+    repo_scope: str,
+    market: str,
+    created_from: str,
+    owner: str,
+    search_budget: dict[str, Any],
+    risk_budget: dict[str, Any],
+    idempotency_key: str | None = None,
+    priority: str = "medium",
+    venue: str | None = None,
+    instrument_scope: str | None = None,
+    universe_id: str | None = None,
+    timeframe: str | None = None,
+    strategy_id: str | None = None,
+    canonical_strategy_ref: str | None = None,
+    registry_binding_status: str = "unbound",
+    variant_seed_id: str | None = None,
+    profile_id: str | None = None,
+    objective_metric: str | None = None,
+    objective_threshold: float | None = None,
+    planner_mode: str | None = None,
+    planner_agent: str | None = None,
+    reviewer_agent: str | None = None,
+    source_ref: str | None = None,
+    tags: list[str] | None = None,
+    notes: str = "",
+) -> None:
+    _ensure_allowed(status, _VALID_CASE_STATUSES, "search_cases.status")
+    _ensure_allowed(stage, _VALID_CASE_STAGES, "search_cases.stage")
+    _ensure_allowed(registry_binding_status, _VALID_REGISTRY_BINDING_STATUSES, "search_cases.registry_binding_status")
+    now = utc_now()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO search_cases (
+                case_id, case_type, title, idempotency_key, status, stage, priority,
+                repo_scope, market, venue, instrument_scope, universe_id, timeframe,
+                strategy_id, canonical_strategy_ref, registry_binding_status, family, variant_seed_id, profile_id,
+                hypothesis, objective_type, objective_metric, objective_threshold,
+                planner_mode, planner_agent, reviewer_agent,
+                created_from, source_ref,
+                search_budget_json, risk_budget_json, tags_json,
+                current_hypothesis_version, latest_manifest_id, latest_verdict_id,
+                final_outcome, opened_at, closed_at, owner, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                case_id, case_type, title, idempotency_key, status, stage, priority,
+                repo_scope, market, venue, instrument_scope, universe_id, timeframe,
+                strategy_id, canonical_strategy_ref, registry_binding_status, family, variant_seed_id, profile_id,
+                hypothesis, objective_type, objective_metric, objective_threshold,
+                planner_mode, planner_agent, reviewer_agent,
+                created_from, source_ref,
+                _json_col(search_budget),
+                _json_col(risk_budget),
+                _json_col(tags or []),
+                1, None, None,
+                None, now, None, owner, notes,
+            ),
+        )
+
+
+def get_search_case(case_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM search_cases WHERE case_id=?", (case_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def list_search_cases(
+    *,
+    status: str | None = None,
+    family: str | None = None,
+    repo_scope: str | None = None,
+    market: str | None = None,
+    stage: str | None = None,
+) -> list[dict]:
+    where: list[str] = []
+    params: list[Any] = []
+    if status:
+        where.append("status=?")
+        params.append(status)
+    if family:
+        where.append("family=?")
+        params.append(family)
+    if repo_scope:
+        where.append("repo_scope=?")
+        params.append(repo_scope)
+    if market:
+        where.append("market=?")
+        params.append(market)
+    if stage:
+        where.append("stage=?")
+        params.append(stage)
+    sql = "SELECT * FROM search_cases"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY opened_at DESC"
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def update_search_case(case_id: str, *, force_transition: bool = False, **updates: Any) -> None:
+    allowed = {
+        "status", "stage", "priority", "latest_manifest_id", "latest_verdict_id",
+        "final_outcome", "closed_at", "current_hypothesis_version", "notes",
+        "strategy_id", "canonical_strategy_ref", "registry_binding_status", "variant_seed_id", "profile_id",
+    }
+    current = get_search_case(case_id)
+    if not current:
+        raise KeyError(f"Search case not found: {case_id}")
+    current_status = str(current.get("status") or "")
+    current_stage = str(current.get("stage") or "")
+    if current_status in _TERMINAL_CASE_STATUSES and not force_transition:
+        mutable_terminal_fields = {"latest_manifest_id", "latest_verdict_id", "notes", "closed_at"}
+        requested = set(updates.keys()) & allowed
+        if requested - mutable_terminal_fields:
+            raise ValueError(f"Cannot update terminal case status={current_status} without force_transition=True")
+    if "status" in updates and updates["status"] is not None:
+        _ensure_allowed(str(updates["status"]), _VALID_CASE_STATUSES, "search_cases.status")
+    if "stage" in updates and updates["stage"] is not None:
+        next_stage = str(updates["stage"])
+        _ensure_allowed(next_stage, _VALID_CASE_STAGES, "search_cases.stage")
+        _ensure_case_transition_allowed(current_stage, next_stage, force_transition=force_transition)
+    if "registry_binding_status" in updates and updates["registry_binding_status"] is not None:
+        _ensure_allowed(
+            str(updates["registry_binding_status"]),
+            _VALID_REGISTRY_BINDING_STATUSES,
+            "search_cases.registry_binding_status",
+        )
+    cols: list[str] = []
+    vals: list[Any] = []
+    for key, value in updates.items():
+        if key not in allowed:
+            continue
+        cols.append(f"{key}=?")
+        vals.append(value)
+    if not cols:
+        return
+    vals.append(case_id)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE search_cases SET {', '.join(cols)} WHERE case_id=?", vals)
+
+
+def create_experiment_manifest(
+    *,
+    manifest_id: str,
+    case_id: str,
+    status: str,
+    repo: str,
+    adapter_type: str,
+    entrypoint: str,
+    strategy_identity: dict[str, Any],
+    run_context_template: dict[str, Any],
+    dataset_spec: dict[str, Any],
+    execution_spec: dict[str, Any],
+    cost_model: dict[str, Any],
+    gates: dict[str, Any],
+    created_by: str,
+    idempotency_key: str | None = None,
+    manifest_version: int = 1,
+    parent_manifest_id: str | None = None,
+    derived_from_verdict_id: str | None = None,
+    derivation_reason: str | None = None,
+    param_diff: dict[str, Any] | None = None,
+    planner_hints: dict[str, Any] | None = None,
+    artifacts: dict[str, Any] | None = None,
+    approved_by: str | None = None,
+    notes: str = "",
+    force_stage_transition: bool = False,
+) -> None:
+    _ensure_allowed(adapter_type, _VALID_ADAPTER_TYPES, "experiment_manifests.adapter_type")
+    case = get_search_case(case_id)
+    if not case:
+        raise KeyError(f"Search case not found: {case_id}")
+    if case["status"] in _TERMINAL_CASE_STATUSES:
+        raise ValueError(f"Cannot create manifest for terminal case status={case['status']}")
+    execution_status = "ready"
+    status_norm = str(status or "").lower()
+    if status_norm in {"completed", "done", "success"}:
+        execution_status = "completed"
+    elif status_norm in {"failed", "error"}:
+        execution_status = "failed"
+    elif status_norm in {"cancelled", "canceled"}:
+        execution_status = "cancelled"
+    now = utc_now()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO experiment_manifests (
+                manifest_id, case_id, idempotency_key, manifest_version, status,
+                execution_status, claimed_by, claimed_at, last_run_id, attempt_count, last_error,
+                parent_manifest_id, derived_from_verdict_id, derivation_reason,
+                repo, adapter_type, entrypoint,
+                strategy_identity_json, run_context_template_json,
+                dataset_spec_json, execution_spec_json,
+                cost_model_json, gates_json,
+                planner_hints_json, artifacts_json, param_diff_json,
+                created_at, created_by, approved_by, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                manifest_id, case_id, idempotency_key, manifest_version, status,
+                execution_status,
+                None, None, None, 0, None,
+                parent_manifest_id, derived_from_verdict_id, derivation_reason,
+                repo, adapter_type, entrypoint,
+                _json_col(strategy_identity),
+                _json_col(run_context_template),
+                _json_col(dataset_spec),
+                _json_col(execution_spec),
+                _json_col(cost_model),
+                _json_col(gates),
+                _json_col(planner_hints or {}),
+                _json_col(artifacts or {}),
+                _json_col(param_diff or {}),
+                now, created_by, approved_by, notes,
+            ),
+        )
+    update_search_case(
+        case_id,
+        force_transition=force_stage_transition,
+        latest_manifest_id=manifest_id,
+        stage="manifest_ready",
+        status="active",
+    )
+
+
+def get_experiment_manifest(manifest_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM experiment_manifests WHERE manifest_id=?", (manifest_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def list_experiment_manifests(
+    *,
+    case_id: str | None = None,
+    status: str | None = None,
+    adapter_type: str | None = None,
+) -> list[dict]:
+    where: list[str] = []
+    params: list[Any] = []
+    if case_id:
+        where.append("case_id=?")
+        params.append(case_id)
+    if status:
+        where.append("status=?")
+        params.append(status)
+    if adapter_type:
+        where.append("adapter_type=?")
+        params.append(adapter_type)
+    sql = "SELECT * FROM experiment_manifests"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC"
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def update_experiment_manifest_status(manifest_id: str, status: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE experiment_manifests SET status=? WHERE manifest_id=?",
+            (status, manifest_id),
+        )
+
+
+def claim_manifest(worker_id: str) -> Optional[dict]:
+    now = utc_now()
+    with get_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT *
+            FROM experiment_manifests
+            WHERE execution_status='ready'
+            ORDER BY created_at ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if not row:
+            return None
+        manifest_id = str(row["manifest_id"])
+        conn.execute(
+            """
+            UPDATE experiment_manifests
+            SET execution_status='claimed', claimed_by=?, claimed_at=?, attempt_count=attempt_count+1
+            WHERE manifest_id=? AND execution_status='ready'
+            """,
+            (worker_id, now, manifest_id),
+        )
+        claimed = conn.execute(
+            "SELECT * FROM experiment_manifests WHERE manifest_id=?",
+            (manifest_id,),
+        ).fetchone()
+        if not claimed or claimed["execution_status"] != "claimed" or claimed["claimed_by"] != worker_id:
+            return None
+        return dict(claimed)
+
+
+def set_manifest_execution_state(
+    manifest_id: str,
+    execution_status: str,
+    *,
+    claimed_by: str | None = None,
+    last_run_id: str | None = None,
+    last_error: str | None = None,
+) -> None:
+    _ensure_allowed(execution_status, _VALID_MANIFEST_EXECUTION_STATUSES, "experiment_manifests.execution_status")
+    with get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE experiment_manifests
+            SET execution_status=?,
+                claimed_by=COALESCE(?, claimed_by),
+                claimed_at=CASE WHEN ?='claimed' THEN COALESCE(claimed_at, ?) ELSE claimed_at END,
+                last_run_id=COALESCE(?, last_run_id),
+                last_error=?
+            WHERE manifest_id=?
+            """,
+            (
+                execution_status,
+                claimed_by,
+                execution_status,
+                utc_now(),
+                last_run_id,
+                last_error,
+                manifest_id,
+            ),
+        )
+
+
+def list_ready_manifests(limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM experiment_manifests
+            WHERE execution_status='ready'
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (max(1, int(limit)),),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def count_manifests_created_since(since_ts: str, *, case_id: str | None = None) -> int:
+    sql = "SELECT COUNT(1) AS n FROM experiment_manifests WHERE created_at>=?"
+    params: list[Any] = [since_ts]
+    if case_id:
+        sql += " AND case_id=?"
+        params.append(case_id)
+    with get_conn() as conn:
+        row = conn.execute(sql, params).fetchone()
+        return int(row["n"] if row else 0)
+
+
+def create_edge_verdict(
+    *,
+    verdict_id: str,
+    case_id: str,
+    manifest_id: str,
+    verdict_type: str,
+    status: str,
+    decision: str,
+    decision_reason: str,
+    metrics_snapshot: dict[str, Any],
+    gate_results: dict[str, Any],
+    run_id: str | None = None,
+    confidence: float | None = None,
+    verdict_score: float | None = None,
+    artifacts_root: str | None = None,
+    dominant_failure_mode: str | None = None,
+    policy_selected: str | None = None,
+    mutation_recommendation: dict[str, Any] | None = None,
+    promotion_state: dict[str, Any] | None = None,
+    next_action: str | None = None,
+    next_action_payload: dict[str, Any] | None = None,
+    postmortem_summary: dict[str, Any] | None = None,
+    review_mode: str | None = None,
+    reviewed_by: str | None = None,
+    approved_by: str | None = None,
+    force_transition: bool = False,
+) -> None:
+    _ensure_allowed(decision, _VALID_VERDICT_DECISIONS, "edge_verdicts.decision")
+    case = get_search_case(case_id)
+    if not case:
+        raise KeyError(f"Search case not found: {case_id}")
+    current_stage = str(case.get("stage") or "")
+    current_status = str(case.get("status") or "")
+    if current_status in _TERMINAL_CASE_STATUSES and not force_transition:
+        raise ValueError(f"Cannot add verdict to terminal case status={current_status}")
+    now = utc_now()
+    with get_conn() as conn:
+        if status == "final":
+            conn.execute(
+                "UPDATE edge_verdicts SET status='superseded' WHERE case_id=? AND status='final'",
+                (case_id,),
+            )
+        conn.execute(
+            """
+            INSERT INTO edge_verdicts (
+                verdict_id, case_id, manifest_id, run_id,
+                verdict_type, status, decision, decision_reason, confidence, verdict_score,
+                metrics_snapshot_json, gate_results_json, artifacts_root,
+                dominant_failure_mode, policy_selected,
+                mutation_recommendation_json, promotion_state_json,
+                next_action, next_action_payload_json,
+                postmortem_summary_json,
+                review_mode, reviewed_by, approved_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                verdict_id, case_id, manifest_id, run_id,
+                verdict_type, status, decision, decision_reason, confidence, verdict_score,
+                _json_col(metrics_snapshot),
+                _json_col(gate_results),
+                artifacts_root,
+                dominant_failure_mode, policy_selected,
+                _json_col(mutation_recommendation or {}),
+                _json_col(promotion_state or {}),
+                next_action,
+                _json_col(next_action_payload or {}),
+                _json_col(postmortem_summary or {}),
+                review_mode, reviewed_by, approved_by, now,
+            ),
+        )
+    stage_updates: dict[str, Any] = {"latest_verdict_id": verdict_id}
+    if decision in ("MUTATE_WITH_POLICY", "RETEST_OOS", "RUN_BIGGER_SAMPLE"):
+        stage_updates["stage"] = "manifest_ready"
+        stage_updates["status"] = "active"
+    elif decision == "PROMOTE_TO_PAPER":
+        stage_updates["stage"] = "paper_candidate"
+        stage_updates["status"] = "active"
+    elif decision == "HOLD_FOR_MORE_DATA":
+        stage_updates["stage"] = "awaiting_verdict"
+        stage_updates["status"] = "on_hold"
+    elif decision == "ASK_PREMIUM_REVIEW":
+        stage_updates["stage"] = "promotion_review"
+    elif decision in ("REJECT_EDGE", "ARCHIVE_CASE"):
+        stage_updates.update(stage="closed", status="done", final_outcome=decision, closed_at=now)
+    next_stage = str(stage_updates.get("stage", current_stage))
+    _ensure_case_transition_allowed(current_stage, next_stage, force_transition=force_transition)
+    update_search_case(case_id, force_transition=force_transition, **stage_updates)
+
+
+def get_edge_verdict(verdict_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM edge_verdicts WHERE verdict_id=?", (verdict_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def list_edge_verdicts(
+    *,
+    case_id: str | None = None,
+    manifest_id: str | None = None,
+    decision: str | None = None,
+) -> list[dict]:
+    where: list[str] = []
+    params: list[Any] = []
+    if case_id:
+        where.append("case_id=?")
+        params.append(case_id)
+    if manifest_id:
+        where.append("manifest_id=?")
+        params.append(manifest_id)
+    if decision:
+        where.append("decision=?")
+        params.append(decision)
+    sql = "SELECT * FROM edge_verdicts"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC"
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def create_case_event(
+    *,
+    case_id: str,
+    event_type: str,
+    payload: dict[str, Any] | None = None,
+    manifest_id: str | None = None,
+    verdict_id: str | None = None,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO case_events (case_id, manifest_id, verdict_id, event_type, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (case_id, manifest_id, verdict_id, event_type, _json_col(payload or {}), utc_now()),
+        )
+
+
+def list_case_events(case_id: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM case_events WHERE case_id=? ORDER BY event_id ASC",
+            (case_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def case_event_exists(
+    *,
+    case_id: str,
+    event_type: str,
+    verdict_id: str | None = None,
+    manifest_id: str | None = None,
+) -> bool:
+    where = ["case_id=?", "event_type=?"]
+    params: list[Any] = [case_id, event_type]
+    if verdict_id is not None:
+        where.append("verdict_id=?")
+        params.append(verdict_id)
+    if manifest_id is not None:
+        where.append("manifest_id=?")
+        params.append(manifest_id)
+    sql = "SELECT event_id FROM case_events WHERE " + " AND ".join(where) + " LIMIT 1"
+    with get_conn() as conn:
+        row = conn.execute(sql, params).fetchone()
+        return row is not None
+
+
+def create_telegram_decision(
+    *,
+    approval_id: str,
+    case_id: str,
+    action: str,
+    actor: str,
+    decision_scope: str = "research_case",
+    manifest_id: str | None = None,
+    run_id: str | None = None,
+    message_id: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO telegram_decisions (
+                approval_id, case_id, manifest_id, run_id,
+                decision_scope, action, actor, message_id, payload_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                approval_id, case_id, manifest_id, run_id,
+                decision_scope, action, actor, message_id,
+                _json_col(payload or {}),
+                utc_now(),
+            ),
+        )
+
+
+def get_telegram_decision(approval_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM telegram_decisions WHERE approval_id=?",
+            (approval_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_telegram_decisions(case_id: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM telegram_decisions WHERE case_id=? ORDER BY created_at ASC",
+            (case_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]

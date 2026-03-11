@@ -14,11 +14,14 @@ from runner import run_pipeline
 from schedule_registry import materialize_due_runs, upsert_default_schedules
 from shadow_recommendations import build_shadow_board
 from strategy_lifecycle import run_due_reviews
+from manifest_worker import process_one_manifest
+from research_governance_scheduler import send_pending_research_governance_messages
 
 WORKER_POLL_INTERVAL_SECONDS = int(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "2"))
 STRATEGY_REVIEW_INTERVAL_SECONDS = int(os.getenv("STRATEGY_REVIEW_INTERVAL_SECONDS", "0"))
 RESEARCH_SCHEDULE_INTERVAL_SECONDS = int(os.getenv("RESEARCH_SCHEDULE_INTERVAL_SECONDS", "0"))
 SHADOW_BOARD_INTERVAL_SECONDS = int(os.getenv("SHADOW_BOARD_INTERVAL_SECONDS", "0"))
+RESEARCH_GOVERNANCE_RETRY_INTERVAL_SECONDS = int(os.getenv("RESEARCH_GOVERNANCE_RETRY_INTERVAL_SECONDS", "0"))
 
 
 def main() -> None:
@@ -29,10 +32,13 @@ def main() -> None:
     last_strategy_review_ts = 0.0
     last_schedule_check_ts = 0.0
     last_shadow_board_ts = 0.0
+    last_research_governance_retry_ts = 0.0
 
     while True:
         claimed = claim_run(worker_id)
         if not claimed:
+            if process_one_manifest(worker_id):
+                continue
             if RESEARCH_SCHEDULE_INTERVAL_SECONDS > 0 and (time.time() - last_schedule_check_ts) >= RESEARCH_SCHEDULE_INTERVAL_SECONDS:
                 try:
                     created = materialize_due_runs()
@@ -60,6 +66,18 @@ def main() -> None:
                     print(f"[worker] shadow board update failed: {exc}")
                 finally:
                     last_shadow_board_ts = time.time()
+            if (
+                RESEARCH_GOVERNANCE_RETRY_INTERVAL_SECONDS > 0
+                and (time.time() - last_research_governance_retry_ts) >= RESEARCH_GOVERNANCE_RETRY_INTERVAL_SECONDS
+            ):
+                try:
+                    sent = send_pending_research_governance_messages(limit=20)
+                    if sent:
+                        print(f"[worker] research governance retries sent: {sent}")
+                except Exception as exc:
+                    print(f"[worker] research governance retry failed: {exc}")
+                finally:
+                    last_research_governance_retry_ts = time.time()
             time.sleep(WORKER_POLL_INTERVAL_SECONDS)
             continue
 

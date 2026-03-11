@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 from typing import Optional
 
 import requests
@@ -85,6 +86,74 @@ def send_pre_execution_message(run_id: str, approval_id: str, goal: str, reason:
             ]
         },
     }
+    resp = requests.post(telegram_api_url("sendMessage"), json=payload, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("ok"):
+        raise TelegramError(f"sendMessage failed: {data}")
+    return data
+
+
+def send_research_governance_message(
+    *,
+    case_id: str,
+    family: str,
+    strategy_id: str | None,
+    stage: str,
+    proposed_decision: str,
+    verdict_id: str,
+    manifest_id: str,
+    metrics: dict[str, Any],
+    dominant_failure_mode: str | None = None,
+    verdict_score: float | None = None,
+    artifacts_root: str | None = None,
+) -> dict:
+    allowed_ui_actions_by_decision = {
+        "MUTATE_WITH_POLICY": ["MUTATE_WITH_POLICY", "RUN_BIGGER_SAMPLE", "ASK_PREMIUM_REVIEW", "KILL_CASE"],
+        "RETEST_OOS": ["RETEST_OOS", "RUN_BIGGER_SAMPLE", "KILL_CASE"],
+        "RUN_BIGGER_SAMPLE": ["RUN_BIGGER_SAMPLE", "RETEST_OOS", "KILL_CASE"],
+        "PROMOTE_TO_PAPER": ["PROMOTE_TO_PAPER", "HOLD_FOR_MORE_DATA", "ASK_PREMIUM_REVIEW", "KILL_CASE"],
+        "ASK_PREMIUM_REVIEW": ["ASK_PREMIUM_REVIEW", "HOLD_FOR_MORE_DATA", "KILL_CASE"],
+        "HOLD_FOR_MORE_DATA": ["RUN_BIGGER_SAMPLE", "ASK_PREMIUM_REVIEW", "KILL_CASE"],
+    }
+    trades = metrics.get("trades", "-")
+    pf = metrics.get("profit_factor", metrics.get("primary_metric", "-"))
+    dd = metrics.get("max_drawdown_pct", "-")
+    oos_pf = metrics.get("oos_profit_factor", "-")
+    prefix = "[RESEARCH CASE]"
+    text = (
+        f"{prefix} Governance\n\n"
+        f"Case: {case_id}\n"
+        f"Family: {family}\n"
+        f"Strategy: {strategy_id or '-'}\n"
+        f"Stage: {stage}\n"
+        f"Decision propus: {proposed_decision}\n\n"
+        f"Trades: {trades}\n"
+        f"PF: {pf}\n"
+        f"Max DD: {dd}\n"
+        f"OOS PF: {oos_pf}\n"
+        f"Failure mode: {dominant_failure_mode or '-'}\n"
+        f"Verdict score: {verdict_score if verdict_score is not None else '-'}\n\n"
+        f"Manifest: {manifest_id}\n"
+        f"Verdict: {verdict_id}\n"
+        f"Artifacts: {artifacts_root or '-'}"
+    )
+    payload: dict[str, Any] = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+    actions = allowed_ui_actions_by_decision.get(proposed_decision, [])
+    if actions:
+        keyboard: list[list[dict[str, str]]] = []
+        row: list[dict[str, str]] = []
+        for action in actions:
+            callback_data = (
+                f"scope=research_case|case_id={case_id}|verdict_id={verdict_id}|manifest_id={manifest_id}|action={action}"
+            )
+            row.append({"text": action.replace("_", " ").title(), "callback_data": callback_data})
+            if len(row) == 2:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+        payload["reply_markup"] = {"inline_keyboard": keyboard}
     resp = requests.post(telegram_api_url("sendMessage"), json=payload, timeout=20)
     resp.raise_for_status()
     data = resp.json()
