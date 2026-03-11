@@ -104,6 +104,7 @@ def send_research_governance_message(
     verdict_id: str,
     manifest_id: str,
     metrics: dict[str, Any],
+    decision_reason: str | None = None,
     dominant_failure_mode: str | None = None,
     verdict_score: float | None = None,
     artifacts_root: str | None = None,
@@ -120,6 +121,17 @@ def send_research_governance_message(
     pf = metrics.get("profit_factor", metrics.get("primary_metric", "-"))
     dd = metrics.get("max_drawdown_pct", "-")
     oos_pf = metrics.get("oos_profit_factor", "-")
+    recommendation_map: dict[str, tuple[str, str]] = {
+        "MUTATE_WITH_POLICY": ("MUTATE_WITH_POLICY", "RUN_BIGGER_SAMPLE"),
+        "RETEST_OOS": ("RETEST_OOS", "RUN_BIGGER_SAMPLE"),
+        "RUN_BIGGER_SAMPLE": ("RUN_BIGGER_SAMPLE", "RETEST_OOS"),
+        "PROMOTE_TO_PAPER": ("PROMOTE_TO_PAPER", "HOLD_FOR_MORE_DATA"),
+        "ASK_PREMIUM_REVIEW": ("ASK_PREMIUM_REVIEW", "HOLD_FOR_MORE_DATA"),
+        "HOLD_FOR_MORE_DATA": ("HOLD_FOR_MORE_DATA", "RUN_BIGGER_SAMPLE"),
+        "REJECT_EDGE": ("KILL_CASE", "ASK_PREMIUM_REVIEW"),
+    }
+    recommended, secondary = recommendation_map.get(proposed_decision, (proposed_decision, "-"))
+    short_summary = (decision_reason or dominant_failure_mode or "No extra summary").strip()
     prefix = "[RESEARCH CASE]"
     text = (
         f"{prefix} Governance\n\n"
@@ -134,9 +146,18 @@ def send_research_governance_message(
         f"OOS PF: {oos_pf}\n"
         f"Failure mode: {dominant_failure_mode or '-'}\n"
         f"Verdict score: {verdict_score if verdict_score is not None else '-'}\n\n"
+        f"Summary: {short_summary[:160]}\n"
+        f"Recommended response: {recommended}\n"
+        f"Secondary option: {secondary}\n\n"
         f"Manifest: {manifest_id}\n"
         f"Verdict: {verdict_id}\n"
-        f"Artifacts: {artifacts_root or '-'}"
+        f"Artifacts: {artifacts_root or '-'}\n\n"
+        "Button guide:\n"
+        "MUTATE=keep family, change params\n"
+        "RETEST_OOS=holdout retest\n"
+        "RUN_BIGGER_SAMPLE=extend windows\n"
+        "ASK_PREMIUM_REVIEW=stricter review\n"
+        "KILL_CASE=close this case"
     )
     payload: dict[str, Any] = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
     actions = allowed_ui_actions_by_decision.get(proposed_decision, [])

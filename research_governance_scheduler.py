@@ -74,6 +74,7 @@ def _send_for_case(case: dict[str, Any]) -> bool:
             verdict_id=verdict_id,
             manifest_id=str(manifest["manifest_id"]),
             metrics=metrics,
+            decision_reason=str(verdict.get("decision_reason") or ""),
             dominant_failure_mode=str(verdict.get("dominant_failure_mode") or verdict.get("decision_reason") or ""),
             verdict_score=verdict.get("verdict_score"),
             artifacts_root=verdict.get("artifacts_root"),
