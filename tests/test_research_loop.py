@@ -8,7 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from research_loop import LoopDecision, decide_next_action, mutate_config
+from research_loop import (
+    LoopDecision,
+    _default_loop_root_for_args,
+    _no_progress_churn_details,
+    decide_next_action,
+    mutate_config,
+)
 
 
 def test_decide_success() -> None:
@@ -76,6 +82,83 @@ def test_mutate_config_tighten_risk() -> None:
     variants = out["families"]["spike_mean_reversion"]["variants"]
     assert len(variants) == 2
     assert variants[0]["spike_drop_pct"] > 0.10
+
+
+def test_default_loop_root_reuses_existing_loop(tmp_path: Path) -> None:
+    loop_dir = tmp_path / "breakout_momentum_20260310T220943Z"
+    loop_dir.mkdir(parents=True)
+    (loop_dir / "loop_state.json").write_text("{}", encoding="utf-8")
+    config_path = loop_dir / "next_batch_config.json"
+    config_path.write_text("{}", encoding="utf-8")
+    resolved = _default_loop_root_for_args("breakout_momentum", config_path, None)
+    assert resolved == loop_dir.resolve()
+
+
+def test_no_progress_churn_details_triggers_freeze() -> None:
+    gates = {"min_profit_factor": 1.2, "min_trade_count": 100, "max_drawdown_pct": -25.0}
+    history = [
+        {
+            "decision": "MUTATE",
+            "reason": "low_trades_good_pf",
+            "failure_signature": "trade_count below gate",
+            "metrics": {"profit_factor": 1.3, "max_drawdown_pct": -10.0, "trade_count": 80},
+            "battery_metrics": {"window_passes": 0.0, "average_profit_factor": 0.8},
+        },
+        {
+            "decision": "MUTATE",
+            "reason": "robustness_warn",
+            "failure_signature": "none",
+            "metrics": {"profit_factor": 1.4, "max_drawdown_pct": -15.0, "trade_count": 90},
+            "battery_metrics": {"window_passes": 0.0, "average_profit_factor": 0.9},
+        },
+        {
+            "decision": "MUTATE",
+            "reason": "low_trades_good_pf",
+            "failure_signature": "trade_count below gate",
+            "metrics": {"profit_factor": 1.35, "max_drawdown_pct": -14.0, "trade_count": 85},
+            "battery_metrics": {"window_passes": 0.0, "average_profit_factor": 1.0},
+        },
+        {
+            "decision": "MUTATE",
+            "reason": "robustness_warn",
+            "failure_signature": "none",
+            "metrics": {"profit_factor": 1.45, "max_drawdown_pct": -16.0, "trade_count": 95},
+            "battery_metrics": {"window_passes": 1.0, "average_profit_factor": 1.1},
+        },
+    ]
+    current = {
+        "decision": "MUTATE",
+        "reason": "robustness_warn",
+        "failure_signature": "none",
+        "metrics": {"profit_factor": 1.5, "max_drawdown_pct": -20.0, "trade_count": 99},
+        "battery_metrics": {"window_passes": 1.0, "average_profit_factor": 1.19},
+    }
+    details = _no_progress_churn_details(history, current, gates, window_size=5)
+    assert details is not None
+    assert details["freeze_reason"] == "no_progress_churn"
+    assert details["generations_without_success"] == 5
+
+
+def test_no_progress_churn_details_skips_when_progress_exists() -> None:
+    gates = {"min_profit_factor": 1.2, "min_trade_count": 100, "max_drawdown_pct": -25.0}
+    history = [
+        {
+            "decision": "MUTATE",
+            "reason": "robustness_warn",
+            "failure_signature": "none",
+            "metrics": {"profit_factor": 1.5, "max_drawdown_pct": -20.0, "trade_count": 110},
+            "battery_metrics": {"window_passes": 2.0, "average_profit_factor": 1.25},
+        }
+    ]
+    current = {
+        "decision": "MUTATE",
+        "reason": "robustness_warn",
+        "failure_signature": "none",
+        "metrics": {"profit_factor": 1.5, "max_drawdown_pct": -20.0, "trade_count": 110},
+        "battery_metrics": {"window_passes": 2.0, "average_profit_factor": 1.25},
+    }
+    details = _no_progress_churn_details(history, current, gates, window_size=2)
+    assert details is None
 
 
 if __name__ == "__main__":

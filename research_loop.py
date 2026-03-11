@@ -30,6 +30,59 @@ class LoopDecision:
     failure_signature: str
 
 
+def _no_progress_churn_details(
+    history: list[dict[str, Any]],
+    current: dict[str, Any],
+    gates: dict[str, Any],
+    window_size: int = 5,
+) -> dict[str, Any] | None:
+    entries = [*history, current]
+    if len(entries) < window_size:
+        return None
+    tail = entries[-window_size:]
+
+    if any(str(item.get("decision")) == "SUCCESS" for item in tail):
+        return None
+
+    gate_pf = float(gates.get("min_profit_factor", 1.2))
+
+    max_window_passes = 0.0
+    max_average_profit_factor = 0.0
+    dominant_counter: dict[str, int] = {}
+
+    for item in tail:
+        battery_metrics = item.get("battery_metrics") or {}
+        max_window_passes = max(max_window_passes, float(battery_metrics.get("window_passes", 0.0) or 0.0))
+        max_average_profit_factor = max(
+            max_average_profit_factor, float(battery_metrics.get("average_profit_factor", 0.0) or 0.0)
+        )
+
+        best_metrics = item.get("metrics") or {}
+        reason = str(item.get("reason") or "").strip()
+        if reason:
+            dominant_counter[reason] = dominant_counter.get(reason, 0) + 1
+        signature = str(item.get("failure_signature") or "none")
+        if signature != "none":
+            for chunk in signature.split("|"):
+                token = chunk.strip()
+                if token:
+                    dominant_counter[token] = dominant_counter.get(token, 0) + 1
+
+    # Freeze on robustness stagnation. Triplet pass (PF/DD/trades) alone is not enough:
+    # if we pass sanity gates but robustness never improves (window_passes, avg_pf), that's churn.
+    if max_window_passes >= 2 or max_average_profit_factor >= gate_pf:
+        return None
+
+    dominant_failure_modes = [k for k, _ in sorted(dominant_counter.items(), key=lambda kv: (-kv[1], kv[0]))[:4]]
+    return {
+        "freeze_reason": "no_progress_churn",
+        "generations_without_success": len(tail),
+        "max_window_passes": max_window_passes,
+        "max_average_profit_factor": max_average_profit_factor,
+        "dominant_failure_modes": dominant_failure_modes,
+    }
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -51,6 +104,17 @@ def _slugify(text: str) -> str:
         else:
             safe.append("_")
     return "".join(safe).strip("_") or "loop"
+
+
+def _default_loop_root_for_args(family_id: str, config_path: Path, explicit_loop_root: str | None) -> Path:
+    if explicit_loop_root:
+        return Path(explicit_loop_root).expanduser().resolve()
+    # Continuation mode: reuse existing loop folder when config is from a prior loop.
+    candidate = config_path.parent
+    if (candidate / "loop_state.json").exists():
+        return candidate
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return AUTOMATION_ROOT / "data" / "research_loops" / f"{_slugify(family_id)}_{timestamp}"
 
 
 def _best_variant(summary: dict[str, Any]) -> dict[str, Any]:
@@ -313,24 +377,38 @@ def run_loop(
     loop_root: Path,
 ) -> dict[str, Any]:
     loop_root.mkdir(parents=True, exist_ok=True)
-    state: dict[str, Any] = {
-        "loop_id": loop_root.name,
-        "family_id": family_id,
-        "config_path": str(config_path.resolve()),
-        "recipe_path": recipe_path,
-        "repo_root": str(repo_root.resolve()),
-        "policy_version": "v1",
-        "started_at": _utc_now(),
-        "generation": 0,
-        "status": "INIT",
-        "history": [],
-    }
-    _write_json(loop_root / "loop_state.json", state)
+    state_path = loop_root / "loop_state.json"
+    if state_path.exists():
+        state = _load_json(state_path)
+        state.setdefault("history", [])
+        state.setdefault("started_at", _utc_now())
+        state["config_path"] = str(config_path.resolve())
+        state["recipe_path"] = recipe_path
+        state["repo_root"] = str(repo_root.resolve())
+        state["policy_version"] = "v1"
+        state["family_id"] = family_id
+        state["loop_id"] = loop_root.name
+    else:
+        state = {
+            "loop_id": loop_root.name,
+            "family_id": family_id,
+            "config_path": str(config_path.resolve()),
+            "recipe_path": recipe_path,
+            "repo_root": str(repo_root.resolve()),
+            "policy_version": "v1",
+            "started_at": _utc_now(),
+            "generation": 0,
+            "status": "INIT",
+            "history": [],
+        }
+    _write_json(state_path, state)
 
     current_cfg = _load_json(config_path)
     current_path = config_path
 
-    for generation in range(1, max_generations + 1):
+    start_generation = int(state.get("generation", 0)) + 1
+    final_generation = int(state.get("generation", 0)) + max_generations
+    for generation in range(start_generation, final_generation + 1):
         generation_dir = loop_root / f"generation_{generation}"
         generation_dir.mkdir(parents=True, exist_ok=True)
 
@@ -354,7 +432,7 @@ def run_loop(
             family_summary,
             current_cfg.get("sanity_gates", {}),
             generation,
-            max_generations,
+            final_generation,
             state["history"],
         )
         # Do not stop on candidate-only success when robustness battery is WARN.
@@ -367,12 +445,35 @@ def run_loop(
                 decision.failure_signature,
             )
 
+        churn_details = _no_progress_churn_details(
+            state["history"],
+            {
+                "generation": generation,
+                "decision": decision.decision,
+                "reason": decision.reason,
+                "failure_signature": decision.failure_signature,
+                "metrics": (_best_variant(family_summary).get("metrics") or {}),
+                "battery_metrics": (battery_summary.get("metrics") or {}),
+            },
+            current_cfg.get("sanity_gates", {}),
+        )
+        if churn_details is not None:
+            decision = LoopDecision(
+                "FREEZE",
+                "no_progress_churn",
+                decision.best_variant,
+                "stop_branch",
+                decision.failure_signature,
+            )
+
         decision_payload = {
             "generation": generation,
             "decision": asdict(decision),
             "battery_summary": battery_summary,
             "family_summary_path": str(family_summary_path),
         }
+        if churn_details is not None:
+            decision_payload["freeze_details"] = churn_details
         _write_json(generation_dir / "decision.json", decision_payload)
         _write_json(loop_root / "decision.json", decision_payload)
 
@@ -386,9 +487,12 @@ def run_loop(
                 "best_variant": decision.best_variant,
                 "failure_signature": decision.failure_signature,
                 "metrics": (_best_variant(family_summary).get("metrics") or {}),
+                "battery_metrics": (battery_summary.get("metrics") or {}),
                 "summary_path": str(family_summary_path),
             }
         )
+        if churn_details is not None:
+            state["freeze_details"] = churn_details
         _write_json(loop_root / "loop_state.json", state)
 
         if decision.decision != "MUTATE" or generation >= max_generations:
@@ -419,14 +523,7 @@ def _main() -> int:
 
     config_path = Path(args.config).expanduser().resolve()
     repo_root = Path(args.repo_root).expanduser().resolve()
-    loop_root = (
-        Path(args.loop_root).expanduser().resolve()
-        if args.loop_root
-        else AUTOMATION_ROOT
-        / "data"
-        / "research_loops"
-        / f"{_slugify(args.family)}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
-    )
+    loop_root = _default_loop_root_for_args(args.family, config_path, args.loop_root)
 
     state = run_loop(
         family_id=args.family,
