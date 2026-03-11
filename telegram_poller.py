@@ -3,14 +3,15 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from approval_service import apply_decision, apply_research_decision
 from db import insert_event
 from telegram_bot import answer_callback, get_updates, is_authorized_chat, is_authorized_user
-
-load_dotenv()
 
 POLL_INTERVAL_SECONDS = int(os.getenv("TELEGRAM_POLL_INTERVAL_SECONDS", "2"))
 

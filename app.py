@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import uuid
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from approval_service import apply_decision as approval_apply_decision
 from approval_service import create_pre_execution_approval
@@ -18,9 +21,7 @@ from schedule_registry import list_research_schedules, list_schedule_runs, upser
 from shadow_recommendations import build_shadow_board
 from strategy_registry import create_change_log
 
-load_dotenv()
-
-app = FastAPI(title="Automation Orchestrator MVP")
+app = FastAPI(title="Automation Orchestrator MVP")(title="Automation Orchestrator MVP")
 
 
 @app.on_event("startup")

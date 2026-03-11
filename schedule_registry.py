@@ -65,7 +65,48 @@ def _json(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=True, sort_keys=True)
 
 
+def _ensure_strategy_stubs() -> None:
+    """Insert minimal strategy rows for schedule strategy_ids so FK constraints pass."""
+    ids_needed = {s["strategy_id"] for s in DEFAULT_RESEARCH_SCHEDULES}
+    now = utc_now()
+    with get_conn() as conn:
+        for sid in ids_needed:
+            exists = conn.execute("SELECT id FROM strategies WHERE id=?", (sid,)).fetchone()
+            if exists:
+                continue
+            name = sid.replace("_", " ").title()
+            conn.execute(
+                """
+                INSERT INTO strategies (
+                    id, name, repo, bot, category, purpose, business_hypothesis,
+                    status_state, status_pct, operational_status, current_verdict,
+                    owner, tags_json, notes, last_reviewed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    sid,
+                    name,
+                    "crypto-bot",
+                    "crypto",
+                    "research_family",
+                    "Research-driven strategy",
+                    "To be validated by research cycles",
+                    "provisional",
+                    0,
+                    "research_only",
+                    "PENDING_VALIDATION",
+                    "schedule_registry",
+                    "[]",
+                    "Stub for research schedule",
+                    now,
+                    now,
+                    now,
+                ),
+            )
+
+
 def upsert_default_schedules() -> None:
+    _ensure_strategy_stubs()
     now = utc_now()
     with get_conn() as conn:
         for item in DEFAULT_RESEARCH_SCHEDULES:

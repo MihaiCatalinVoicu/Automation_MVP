@@ -7,8 +7,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
 from db import claim_run, init_db, insert_event
-load_dotenv()
 
 from runner import run_pipeline
 from schedule_registry import materialize_due_runs, upsert_default_schedules
