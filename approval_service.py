@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
+from pathlib import Path
 
 from db import (
     create_case_event,
@@ -26,6 +28,25 @@ from db import (
 )
 from policies import decision_to_action
 from telegram_bot import send_approval_message, send_pre_execution_message
+
+DEBUG_LOG_PATH = Path("debug-0fff85.log")
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    payload = {
+        "sessionId": "0fff85",
+        "runId": "investigate_execution_spec_inheritance",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(time.time() * 1000),
+    }
+    try:
+        with DEBUG_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=True) + "\n")
+    except Exception:
+        pass
 
 
 def create_approval(run_id: str, summary: dict) -> str:
@@ -279,6 +300,26 @@ def apply_research_decision(
         next_version = parent_version + 1
         new_manifest_id = f"{target_manifest['manifest_id']}_{action_up.lower()}"
         dataset_spec = json.loads(target_manifest["dataset_spec_json"])
+        parent_execution_spec = json.loads(target_manifest.get("execution_spec_json") or "{}")
+        # region agent log
+        _debug_log(
+            "H1_parent_execution_spec_empty",
+            "approval_service.py:apply_research_decision",
+            "before_create_child_manifest",
+            {
+                "case_id": case_id,
+                "action": action_up,
+                "target_manifest_id": str(target_manifest.get("manifest_id") or ""),
+                "latest_manifest_id": str(latest_manifest.get("manifest_id") or ""),
+                "requested_manifest_id": manifest_id or "",
+                "parent_execution_spec_keys": sorted(list(parent_execution_spec.keys())),
+                "parent_execution_spec_missing_required": [
+                    k for k in ("family", "config_path", "recipe_path", "repo_root")
+                    if not str(parent_execution_spec.get(k) or "").strip()
+                ],
+            },
+        )
+        # endregion
         if action_up == "RUN_BIGGER_SAMPLE":
             dataset_spec["extended_sample"] = True
         elif action_up == "RETEST_OOS":
@@ -298,7 +339,7 @@ def apply_research_decision(
             strategy_identity=json.loads(target_manifest["strategy_identity_json"]),
             run_context_template=json.loads(target_manifest["run_context_template_json"]),
             dataset_spec=dataset_spec,
-            execution_spec=json.loads(target_manifest["execution_spec_json"]),
+            execution_spec=parent_execution_spec,
             cost_model=json.loads(target_manifest["cost_model_json"]),
             gates=json.loads(target_manifest["gates_json"]),
             planner_hints=json.loads(target_manifest["planner_hints_json"]),

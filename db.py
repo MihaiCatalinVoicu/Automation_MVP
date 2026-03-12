@@ -3,16 +3,36 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterable, Optional
 
 DB_PATH = os.getenv("DB_PATH", "./data/orchestrator.db")
 SQLITE_TIMEOUT_SECONDS = 10
+DEBUG_LOG_PATH = Path("debug-0fff85.log")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    payload = {
+        "sessionId": "0fff85",
+        "runId": "investigate_execution_spec_inheritance",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(time.time() * 1000),
+    }
+    try:
+        with DEBUG_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=True) + "\n")
+    except Exception:
+        pass
 
 
 def _connect() -> sqlite3.Connection:
@@ -1565,6 +1585,24 @@ def create_experiment_manifest(
     force_stage_transition: bool = False,
 ) -> None:
     _ensure_allowed(adapter_type, _VALID_ADAPTER_TYPES, "experiment_manifests.adapter_type")
+    # region agent log
+    _debug_log(
+        "H2_execution_spec_lost_before_insert",
+        "db.py:create_experiment_manifest",
+        "create_manifest_input",
+        {
+            "manifest_id": manifest_id,
+            "parent_manifest_id": parent_manifest_id or "",
+            "derived_from_verdict_id": derived_from_verdict_id or "",
+            "adapter_type": adapter_type,
+            "execution_spec_keys": sorted(list((execution_spec or {}).keys())),
+            "missing_required": [
+                k for k in ("family", "config_path", "recipe_path", "repo_root")
+                if not str((execution_spec or {}).get(k) or "").strip()
+            ],
+        },
+    )
+    # endregion
     if adapter_type == "research_loop":
         required_execution_spec = ("family", "config_path", "recipe_path", "repo_root")
         missing = [k for k in required_execution_spec if not str(execution_spec.get(k) or "").strip()]
@@ -1619,6 +1657,21 @@ def create_experiment_manifest(
                 now, created_by, approved_by, notes,
             ),
         )
+    # region agent log
+    _debug_log(
+        "H3_execution_spec_stored_in_db",
+        "db.py:create_experiment_manifest",
+        "create_manifest_inserted",
+        {
+            "manifest_id": manifest_id,
+            "adapter_type": adapter_type,
+            "stored_missing_required": [
+                k for k in ("family", "config_path", "recipe_path", "repo_root")
+                if not str((execution_spec or {}).get(k) or "").strip()
+            ],
+        },
+    )
+    # endregion
     update_search_case(
         case_id,
         force_transition=force_stage_transition,
