@@ -1565,6 +1565,13 @@ def create_experiment_manifest(
     force_stage_transition: bool = False,
 ) -> None:
     _ensure_allowed(adapter_type, _VALID_ADAPTER_TYPES, "experiment_manifests.adapter_type")
+    if adapter_type == "research_loop":
+        required_execution_spec = ("family", "config_path", "recipe_path", "repo_root")
+        missing = [k for k in required_execution_spec if not str(execution_spec.get(k) or "").strip()]
+        if missing:
+            raise ValueError(
+                "Missing required execution_spec for research_loop: " + "/".join(missing)
+            )
     case = get_search_case(case_id)
     if not case:
         raise KeyError(f"Search case not found: {case_id}")
