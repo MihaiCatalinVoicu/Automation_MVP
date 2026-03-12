@@ -113,7 +113,7 @@ SELECT
   claimed_at,
   last_error
 FROM experiment_manifests
-WHERE execution_status IN ('failed', 'claimed', 'running')
+WHERE execution_status IN ('failed', 'claimed', 'running', 'dead')
 ORDER BY attempt_count DESC, claimed_at DESC;
 "
 

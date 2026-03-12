@@ -1360,7 +1360,7 @@ _VALID_ADAPTER_TYPES = frozenset(
     }
 )
 _VALID_MANIFEST_EXECUTION_STATUSES = frozenset(
-    {"ready", "claimed", "running", "completed", "failed", "awaiting_decision", "cancelled"}
+    {"ready", "claimed", "running", "completed", "failed", "awaiting_decision", "cancelled", "dead"}
 )
 
 
@@ -1730,6 +1730,34 @@ def set_manifest_execution_state(
                 manifest_id,
             ),
         )
+
+
+def set_manifest_failed_with_retry_policy(
+    manifest_id: str,
+    *,
+    last_error: str | None = None,
+    max_retries: int = 3,
+) -> tuple[str, int]:
+    """Set failed/dead based on attempt_count and retry policy."""
+    max_retries = max(1, int(max_retries))
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT attempt_count FROM experiment_manifests WHERE manifest_id=?",
+            (manifest_id,),
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Manifest not found: {manifest_id}")
+        attempt_count = int(row["attempt_count"] or 0)
+        next_status = "dead" if attempt_count >= max_retries else "failed"
+        conn.execute(
+            """
+            UPDATE experiment_manifests
+            SET execution_status=?, last_error=?
+            WHERE manifest_id=?
+            """,
+            (next_status, last_error, manifest_id),
+        )
+    return next_status, attempt_count
 
 
 def list_ready_manifests(limit: int = 50) -> list[dict]:
