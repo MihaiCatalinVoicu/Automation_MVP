@@ -749,7 +749,6 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_case_id ON edge_verdicts(case_id);
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_manifest_id ON edge_verdicts(manifest_id);
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_decision ON edge_verdicts(decision);
-            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_validation_level ON edge_verdicts(validation_level);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_edge_verdicts_one_final_per_case
             ON edge_verdicts(case_id)
             WHERE status='final';
@@ -803,6 +802,9 @@ def init_db() -> None:
         _ensure_column(conn, "edge_verdicts", "config_fingerprint", "TEXT")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_edge_verdicts_near_miss_score ON edge_verdicts(near_miss_score)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_edge_verdicts_validation_level ON edge_verdicts(validation_level)"
         )
 
 
