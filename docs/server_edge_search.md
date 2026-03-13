@@ -58,10 +58,26 @@ Important defaults:
 - `MUTATION_MAX_MANIFESTS_PER_CYCLE=10`
 - `RESEARCH_MAX_MUTATION_BATCH_SIZE=6`
 
+## Path Setup
+
+Service units use `/srv/automation-mvp`. If the project lives elsewhere (e.g. `~/automation-mvp`), create a symlink:
+
+```bash
+sudo ln -s /root/automation-mvp /srv/automation-mvp
+```
+
+Verify:
+
+```bash
+test -x /srv/automation-mvp/.venv/bin/python && echo "OK" || echo "FAIL"
+test -f /srv/automation-mvp/manifest_worker.py && echo "OK" || echo "FAIL"
+```
+
 ## Install Sequence
 
 ```bash
-cd /srv/automation-mvp
+cd ~/automation-mvp
+# If project is in ~/automation-mvp: sudo ln -s /root/automation-mvp /srv/automation-mvp
 cp ops/systemd/edge-search.env.example ops/systemd/edge-search.env
 
 sudo cp ops/systemd/edge-search-manifest-worker.service /etc/systemd/system/
@@ -135,6 +151,73 @@ Healthy early behavior looks like this:
 - one or two families dominate useful near misses
 - repeated fingerprints become visible in the report instead of silently wasting compute
 - backlog gating skips proposal cycles when worker capacity is saturated
+
+## Deploy Runbook (local → server)
+
+**Local (commit & push):**
+
+```bash
+cd automation-mvp
+git add -A
+git status
+git commit -m "fix: DB migration near_miss_score, manifest-worker autostart, path docs"
+git push
+```
+
+**Server (pull & restart):**
+
+```bash
+cd ~/automation-mvp
+git pull
+
+# Symlink if project is in ~ not /srv
+sudo ln -sf /root/automation-mvp /srv/automation-mvp
+
+# Copy updated units (if changed)
+sudo cp ops/systemd/edge-search-manifest-worker.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Restart worker
+sudo systemctl restart edge-search-manifest-worker.service
+
+# Re-enable autostart after adding [Install]
+sudo systemctl enable edge-search-manifest-worker.service
+```
+
+**Status & logs:**
+
+```bash
+systemctl status edge-search-manifest-worker.service
+systemctl list-timers | grep edge-search
+journalctl -u edge-search-manifest-worker.service -n 50 -f
+journalctl -u edge-search-mutation-cycle.service -n 30 --no-pager
+```
+
+**Manual one-shot tests:**
+
+```bash
+cd ~/automation-mvp && . .venv/bin/activate
+python mutation_cycle.py --since-hours 72 --limit 5 --dry-run
+sudo systemctl start edge-search-mutation-cycle.service
+```
+
+## Telegram & decision flow
+
+The edge-search services **do not include** the Telegram poller. Flow with buttons works only if `telegram_poller.py` runs as a separate process:
+
+- **manifest_worker** → runs manifests → **edge_verdict_writer** → when verdict needs human decision (e.g. `PROMOTE_TO_PAPER`, `ASK_PREMIUM_REVIEW`), sends message to Telegram via `send_research_governance_message`
+- **telegram_poller** → polls for button clicks → **approval_service.apply_research_decision** → updates case and optionally creates new manifest
+
+To keep Telegram flow active:
+
+```bash
+# Option A: tmux/screen
+python telegram_poller.py
+
+# Option B: systemd (add a unit for telegram_poller)
+```
+
+The logic (approval_service, telegram_decisions, policies) is unchanged. Only the process that *receives* the clicks must be running.
 
 ## Notes
 

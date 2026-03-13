@@ -9,3 +9,6 @@ EnvironmentFile=-/srv/automation-mvp/ops/systemd/edge-search.env
 ExecStart=/srv/automation-mvp/.venv/bin/python manifest_worker.py
 Restart=always
 RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
