@@ -15,6 +15,7 @@ from db import (
     record_maintenance_job_run,
     upsert_family_budget_state,
 )
+from edge_search_state import persist_live_edge_search_review
 from family_registry import as_dict, list_family_definitions, sync_family_registry_db
 from policy_benchmark import build_benchmark
 
@@ -227,6 +228,8 @@ def build_meta_payload(*, loops_root: Path, since_days: int = 30) -> dict[str, A
             "family_id": family_id,
             "registry": as_dict(registry) if registry else None,
             "family_score": score,
+            "final_verdict_count": len(final_verdicts),
+            "near_miss_count": len(near_miss_candidates),
             "near_miss_rate": near_miss_rate,
             "mutation_improvement_rate": mutation_improvement_rate,
             "robustness_survival_rate": robustness_survival_rate,
@@ -297,6 +300,7 @@ def build_meta_payload(*, loops_root: Path, since_days: int = 30) -> dict[str, A
         "waste_cases": waste_cases[:20],
         "actions": actions,
     }
+    payload["live_edge_search"] = persist_live_edge_search_review(payload)
     record_maintenance_job_run("meta_search_report", "ok", payload)
     return payload
 
@@ -321,6 +325,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
         lines.append(
             f"- latest_mutation_cycle status=`{latest_mutation_cycle.get('status')}` "
             f"created=`{summary.get('created_count', 0)}` candidates=`{summary.get('candidate_count', 0)}`"
+        )
+    live_state = payload.get("live_edge_search") or {}
+    if live_state:
+        metrics = live_state.get("metrics") or {}
+        lines.append(
+            f"- live_edge_search mode=`{live_state.get('mode')}` status=`{live_state.get('status')}` "
+            f"evaluated=`{metrics.get('evaluated_total', 0)}` near_miss=`{metrics.get('near_miss_total', 0)}` "
+            f"duplicate_ratio=`{metrics.get('duplicate_ratio', 0)}`"
         )
     lines.append("")
     lines.append("## Family Ranking")
@@ -363,6 +375,7 @@ def _main() -> int:
     ap.add_argument("--since-days", type=int, default=30)
     ap.add_argument("--output-md", default="data/reports/meta_search_report_latest.md")
     ap.add_argument("--output-json", default="data/reports/meta_search_report_latest.json")
+    ap.add_argument("--output-live-review-json", default="data/reports/live_edge_search_review_latest.json")
     args = ap.parse_args()
 
     payload = build_meta_payload(
@@ -371,12 +384,16 @@ def _main() -> int:
     )
     md_path = Path(args.output_md).expanduser().resolve()
     json_path = Path(args.output_json).expanduser().resolve()
+    live_review_json_path = Path(args.output_live_review_json).expanduser().resolve()
     md_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.parent.mkdir(parents=True, exist_ok=True)
+    live_review_json_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.write_text(render_markdown(payload), encoding="utf-8")
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    live_review_json_path.write_text(json.dumps(payload.get("live_edge_search") or {}, indent=2), encoding="utf-8")
     print(f"Wrote: {md_path}")
     print(f"Wrote: {json_path}")
+    print(f"Wrote: {live_review_json_path}")
     return 0
 
 

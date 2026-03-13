@@ -83,7 +83,8 @@ def test_mutate_config_tighten_risk() -> None:
     assert out["dataset"]["hard_stop_pct"] == -0.025
     variants = out["families"]["spike_mean_reversion"]["variants"]
     assert len(variants) == 2
-    assert variants[0]["variant_name"].endswith("_g1")
+    assert variants[0]["variant_name"] == "mr_base"
+    assert meta["elite_count"] == 1
 
 
 def test_mutate_config_trend_vol_expansion_generates_unique_variants() -> None:
@@ -202,6 +203,22 @@ def test_config_fingerprint_is_stable() -> None:
 def test_config_fingerprint_normalizes_numeric_equivalents() -> None:
     a = {"atr_stop": 2, "nested": {"breakout_window": 20, "weights": [1, 2.0, 2.5000001]}}
     b = {"atr_stop": 2.0, "nested": {"breakout_window": 20.0, "weights": [1.0, 2, 2.5]}}
+    assert _config_fingerprint(a) == _config_fingerprint(b)
+
+
+def test_config_fingerprint_quantizes_semantic_near_duplicates() -> None:
+    a = {
+        "compression_window": 20.2,
+        "breakout_vol_mult": 1.126,
+        "volume_zscore_min": 1.24,
+        "pullback_near_atr_mult": 0.646,
+    }
+    b = {
+        "compression_window": 20.0,
+        "breakout_vol_mult": 1.14,
+        "volume_zscore_min": 1.21,
+        "pullback_near_atr_mult": 0.651,
+    }
     assert _config_fingerprint(a) == _config_fingerprint(b)
 
 

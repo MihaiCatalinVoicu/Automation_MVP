@@ -135,6 +135,26 @@ def test_mutation_cycle_creates_child_manifest_from_next_batch_config() -> None:
     os.unlink(tmp.name)
 
 
+def test_mutation_cycle_skips_when_live_edge_search_is_frozen() -> None:
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tmp.close()
+    db, mutation_cycle = _bootstrap(tmp.name)
+    db.upsert_edge_search_runtime_state(
+        mode="FROZEN",
+        status="freeze_required",
+        freeze_reason="duplicate_waste_high:0.500>0.350",
+        review={"mode": "FROZEN", "status": "freeze_required"},
+    )
+
+    summary = mutation_cycle.run_mutation_cycle(since_hours=72, limit=10, dry_run=False)
+    assert summary["created_count"] == 0
+    assert summary["candidate_count"] == 0
+    assert summary["live_edge_search"]["mode"] == "FROZEN"
+    assert summary["live_edge_search"]["reasons"]
+
+    os.unlink(tmp.name)
+
+
 if __name__ == "__main__":
     test_mutation_cycle_creates_child_manifest_from_next_batch_config()
     print("All tests passed.")

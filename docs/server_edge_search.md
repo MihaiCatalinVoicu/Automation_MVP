@@ -57,6 +57,10 @@ Important defaults:
 - `RESEARCH_MIN_TRADES_FOR_MUTATION=80`
 - `MUTATION_MAX_MANIFESTS_PER_CYCLE=10`
 - `RESEARCH_MAX_MUTATION_BATCH_SIZE=6`
+- `RESEARCH_MUTATION_RADIUS=0.10`
+- `RESEARCH_ELITE_COUNT=1`
+- `EDGE_SEARCH_TRIGGER_A_MIN_EXPERIMENTS=200`
+- `EDGE_SEARCH_TRIGGER_B_MIN_EXPERIMENTS=1000`
 
 ## Path Setup
 
@@ -129,8 +133,24 @@ Use:
 - `data/reports/mutation_cycle_latest.json`
 - `data/reports/meta_search_report_latest.json`
 - `data/reports/meta_search_report_latest.md`
+- `data/reports/live_edge_search_review_latest.json`
 - `data/reports/research_retention_latest.json`
 - `journalctl -u edge-search-manifest-worker.service`
+
+## Live Review Semantics
+
+The bounded server loop now keeps an explicit runtime mode derived from the report and backlog state:
+
+- `EXPLORE`: bootstrap / bounded fresh search
+- `REVIEW`: enough evidence exists to inspect convergence, but not enough to expand
+- `REFINE`: Trigger A passed, so compute should bias toward stronger families and near misses
+- `SAFE_IDLE`: queue is saturated, so mutation pauses without changing trading/runtime state
+- `FROZEN`: duplicate waste, backlog pressure, or missing convergence means proposal expansion must stop
+
+The current mode and Trigger A-E readiness are exported in:
+
+- `data/reports/meta_search_report_latest.json` under `live_edge_search`
+- `data/reports/live_edge_search_review_latest.json`
 
 ## Stop Conditions
 
@@ -151,6 +171,7 @@ Healthy early behavior looks like this:
 - one or two families dominate useful near misses
 - repeated fingerprints become visible in the report instead of silently wasting compute
 - backlog gating skips proposal cycles when worker capacity is saturated
+- Trigger A stays locked until the system shows real family structure instead of noise
 
 ## Deploy Runbook (local → server)
 

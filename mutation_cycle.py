@@ -18,6 +18,7 @@ from db import (
     manifest_config_fingerprint_exists,
     record_maintenance_job_run,
 )
+from edge_search_state import preflight_mutation_cycle
 from family_registry import family_batch_size, sync_family_registry_db
 from research_guardrails import evaluate_manifest_plan_guardrails
 from research_loop import _config_fingerprint
@@ -229,6 +230,20 @@ def _build_child_manifest_payload(candidate: dict[str, Any], *, config_path: Pat
 def run_mutation_cycle(*, since_hours: int, limit: int, dry_run: bool = False) -> dict[str, Any]:
     init_db()
     sync_family_registry_db()
+    preflight = preflight_mutation_cycle()
+    if not preflight["allowed"]:
+        summary = {
+            "generated_at": _utc_now(),
+            "since_hours": since_hours,
+            "candidate_count": 0,
+            "created_count": 0,
+            "dry_run": dry_run,
+            "created_manifests": [],
+            "skipped": [],
+            "live_edge_search": preflight,
+        }
+        record_maintenance_job_run("mutation_cycle", "skipped", summary)
+        return summary
     min_near_miss_score = _env_float("RESEARCH_MIN_NEAR_MISS_SCORE_FOR_MUTATION", 0.60)
     candidates = _list_candidate_rows(
         since_hours=since_hours,
@@ -244,6 +259,7 @@ def run_mutation_cycle(*, since_hours: int, limit: int, dry_run: bool = False) -
         "dry_run": dry_run,
         "created_manifests": [],
         "skipped": [],
+        "live_edge_search": preflight,
     }
 
     for candidate in candidates:

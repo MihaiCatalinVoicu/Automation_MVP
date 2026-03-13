@@ -410,6 +410,25 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS edge_search_runtime_state (
+                state_key TEXT PRIMARY KEY,
+                mode TEXT NOT NULL,
+                status TEXT NOT NULL,
+                freeze_reason TEXT,
+                health_json TEXT NOT NULL DEFAULT '{}',
+                review_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS edge_search_trigger_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trigger_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_strategies_repo ON strategies(repo);
             CREATE INDEX IF NOT EXISTS idx_strategies_category ON strategies(category);
             CREATE INDEX IF NOT EXISTS idx_strategy_versions_strategy_id ON strategy_versions(strategy_id);
@@ -434,6 +453,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_work_item_events_work_item_id ON work_item_events(work_item_id);
             CREATE INDEX IF NOT EXISTS idx_runtime_import_state_status ON runtime_import_state(last_status);
             CREATE INDEX IF NOT EXISTS idx_maintenance_job_runs_name ON maintenance_job_runs(job_name, created_at);
+            CREATE INDEX IF NOT EXISTS idx_edge_search_trigger_reviews_name ON edge_search_trigger_reviews(trigger_name, created_at);
 
             CREATE VIEW IF NOT EXISTS scan_summaries_v AS
             SELECT
@@ -1319,6 +1339,87 @@ def get_last_maintenance_job_run(job_name: str) -> Optional[dict]:
         row = conn.execute(
             "SELECT * FROM maintenance_job_runs WHERE job_name=? ORDER BY id DESC LIMIT 1",
             (job_name,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_edge_search_runtime_state(state_key: str = "global") -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM edge_search_runtime_state WHERE state_key=?",
+            (state_key,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def upsert_edge_search_runtime_state(
+    *,
+    state_key: str = "global",
+    mode: str,
+    status: str,
+    freeze_reason: str | None = None,
+    health: dict[str, Any] | None = None,
+    review: dict[str, Any] | None = None,
+) -> None:
+    now = utc_now()
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT state_key FROM edge_search_runtime_state WHERE state_key=?",
+            (state_key,),
+        ).fetchone()
+        payload = (
+            mode,
+            status,
+            freeze_reason,
+            json.dumps(health or {}, ensure_ascii=True, sort_keys=True),
+            json.dumps(review or {}, ensure_ascii=True, sort_keys=True),
+            now,
+        )
+        if existing:
+            conn.execute(
+                """
+                UPDATE edge_search_runtime_state
+                SET mode=?, status=?, freeze_reason=?, health_json=?, review_json=?, updated_at=?
+                WHERE state_key=?
+                """,
+                (*payload, state_key),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO edge_search_runtime_state (
+                    state_key, mode, status, freeze_reason, health_json, review_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    state_key,
+                    mode,
+                    status,
+                    freeze_reason,
+                    json.dumps(health or {}, ensure_ascii=True, sort_keys=True),
+                    json.dumps(review or {}, ensure_ascii=True, sort_keys=True),
+                    now,
+                    now,
+                ),
+            )
+
+
+def record_edge_search_trigger_review(trigger_name: str, status: str, summary: dict[str, Any]) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO edge_search_trigger_reviews (trigger_name, status, summary_json, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (trigger_name, status, json.dumps(summary, ensure_ascii=True, sort_keys=True), utc_now()),
+        )
+
+
+def get_last_edge_search_trigger_review(trigger_name: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM edge_search_trigger_reviews WHERE trigger_name=? ORDER BY id DESC LIMIT 1",
+            (trigger_name,),
         ).fetchone()
         return dict(row) if row else None
 

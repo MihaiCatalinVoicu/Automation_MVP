@@ -12,9 +12,11 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median, pstdev
 from typing import Any
 
 from recipe_runner import run_validation_battery
@@ -114,18 +116,53 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
         f.write(json.dumps(payload) + "\n")
 
 
-def _canonicalize_for_fingerprint(value: Any) -> Any:
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _mutation_radius() -> float:
+    return min(0.15, max(0.05, _env_float("RESEARCH_MUTATION_RADIUS", 0.10)))
+
+
+def _elite_count() -> int:
+    return max(0, min(5, _env_int("RESEARCH_ELITE_COUNT", 1)))
+
+
+def _quantize_float_for_fingerprint(key: str, value: float) -> float | int:
+    key_l = key.lower()
+    if any(token in key_l for token in ("window", "lookback", "bars", "top_k", "count", "ranking")):
+        return int(round(value))
+    if "zscore" in key_l:
+        return round(value, 1)
+    if any(token in key_l for token in ("mult", "ratio", "atr", "stop", "trail")):
+        quantized = round(round(value / 0.05) * 0.05, 4)
+        return int(quantized) if float(quantized).is_integer() else quantized
+    if any(token in key_l for token in ("pct", "reclaim", "drop", "jump", "ret")):
+        quantized = round(value, 3)
+        return int(quantized) if float(quantized).is_integer() else quantized
+    rounded = round(value, 6)
+    return int(rounded) if float(rounded).is_integer() else rounded
+
+
+def _canonicalize_for_fingerprint(value: Any, parent_key: str = "") -> Any:
     if isinstance(value, dict):
-        return {str(key): _canonicalize_for_fingerprint(value[key]) for key in sorted(value)}
+        return {str(key): _canonicalize_for_fingerprint(value[key], str(key)) for key in sorted(value)}
     if isinstance(value, list):
-        return [_canonicalize_for_fingerprint(item) for item in value]
+        return [_canonicalize_for_fingerprint(item, parent_key) for item in value]
     if isinstance(value, tuple):
-        return [_canonicalize_for_fingerprint(item) for item in value]
+        return [_canonicalize_for_fingerprint(item, parent_key) for item in value]
     if isinstance(value, float):
-        rounded = round(value, 6)
-        if rounded.is_integer():
-            return int(rounded)
-        return rounded
+        return _quantize_float_for_fingerprint(parent_key, value)
     return value
 
 
@@ -367,7 +404,10 @@ def _deconcentrate_variant(variant: dict[str, Any], suffix: str) -> dict[str, An
 def _bump(item: dict[str, Any], key: str, delta: float, min_value: float | None = None, max_value: float | None = None) -> bool:
     if key not in item:
         return False
-    value = float(item[key]) + delta
+    radius = _mutation_radius()
+    base_radius = 0.10
+    scaled_delta = delta * (radius / base_radius)
+    value = float(item[key]) + scaled_delta
     if min_value is not None:
         value = max(min_value, value)
     if max_value is not None:
@@ -379,7 +419,12 @@ def _bump(item: dict[str, Any], key: str, delta: float, min_value: float | None 
 def _bump_int(item: dict[str, Any], key: str, delta: int, min_value: int | None = None, max_value: int | None = None) -> bool:
     if key not in item:
         return False
-    value = int(item[key]) + delta
+    radius = _mutation_radius()
+    base_radius = 0.10
+    scaled = int(round(delta * (radius / base_radius)))
+    if scaled == 0 and delta != 0:
+        scaled = 1 if delta > 0 else -1
+    value = int(item[key]) + scaled
     if min_value is not None:
         value = max(min_value, value)
     if max_value is not None:
@@ -495,6 +540,13 @@ def mutate_config(
     chosen_dataset: dict[str, Any] | None = None
     generated: list[dict[str, Any]] = []
     seen_signatures: set[str] = set()
+    elite_variants: list[str] = []
+    elite_count = min(_elite_count(), max(1, variants_per_generation))
+    base_signature = _variant_signature(base_variant)
+    if elite_count > 0:
+        generated.append(copy.deepcopy(base_variant))
+        seen_signatures.add(base_signature)
+        elite_variants.append(str(base_variant.get("variant_name") or "elite"))
     for idx in range(1, max(1, variants_per_generation) + 3):
         dataset_copy = copy.deepcopy(base_dataset)
         candidate = _apply_family_policy_variant(family_id, policy, base_variant, dataset_copy, f"g{idx}")
@@ -521,9 +573,33 @@ def mutate_config(
         "policy": policy,
         "mutation_reason": decision.reason,
         "base_variant": base_variant.get("variant_name"),
+        "elite_variants": elite_variants,
+        "elite_count": len(elite_variants),
+        "mutation_radius": _mutation_radius(),
         "new_variants": [x.get("variant_name") for x in family_cfg["variants"]],
     }
     return cfg, mutation_meta
+
+
+def _family_stats_snapshot(family_id: str, history: list[dict[str, Any]]) -> dict[str, Any]:
+    family_entries = [item for item in history if item.get("family_id") == family_id or not item.get("family_id")]
+    pf_values = [
+        float((item.get("metrics") or {}).get("profit_factor") or 0.0)
+        for item in family_entries
+        if (item.get("metrics") or {}).get("profit_factor") is not None
+    ]
+    best_pf = max(pf_values) if pf_values else 0.0
+    near_miss_count = sum(1 for item in family_entries if str(item.get("decision") or "") == "MUTATE")
+    snapshot = {
+        "family": family_id,
+        "experiments": len(family_entries),
+        "median_pf": round(median(pf_values), 4) if pf_values else 0.0,
+        "pf_std": round(pstdev(pf_values), 4) if len(pf_values) >= 2 else 0.0,
+        "near_miss_count": near_miss_count,
+        "best_pf": round(best_pf, 4),
+        "timestamp": _utc_now(),
+    }
+    return snapshot
 
 
 def run_loop(
@@ -658,6 +734,7 @@ def run_loop(
         state["history"].append(
             {
                 "generation": generation,
+                "family_id": family_id,
                 "decision": decision.decision,
                 "reason": decision.reason,
                 "best_variant": decision.best_variant,
@@ -672,6 +749,26 @@ def run_loop(
         if churn_details is not None:
             state["freeze_details"] = churn_details
         _write_json(loop_root / "loop_state.json", state)
+        _append_jsonl(
+            loop_root / "experiments.jsonl",
+            {
+                "experiment_id": f"{state['loop_id']}:g{generation}",
+                "family": family_id,
+                "parent_id": state["history"][-2]["config_fingerprint"] if len(state["history"]) >= 2 else None,
+                "generation": generation,
+                "config_fingerprint": config_fp,
+                "pf": round(float(((_best_variant(family_summary).get("metrics") or {}).get("profit_factor") or 0.0)), 4),
+                "trades": int(((_best_variant(family_summary).get("metrics") or {}).get("trade_count") or 0)),
+                "dd_pct": round(float(((_best_variant(family_summary).get("metrics") or {}).get("max_drawdown_pct") or 0.0)), 4),
+                "winrate": round(float(((_best_variant(family_summary).get("metrics") or {}).get("winrate") or 0.0)), 4),
+                "avg_win": round(float(((_best_variant(family_summary).get("metrics") or {}).get("avg_win_pct") or 0.0)), 4),
+                "avg_loss": round(float(((_best_variant(family_summary).get("metrics") or {}).get("avg_loss_pct") or 0.0)), 4),
+                "decision": decision.decision,
+                "reason": decision.reason,
+                "timestamp": _utc_now(),
+            },
+        )
+        _append_jsonl(loop_root / "family_stats.jsonl", _family_stats_snapshot(family_id, state["history"]))
 
         if decision.decision == "MUTATE" and generation >= final_generation:
             _append_jsonl(
@@ -683,6 +780,7 @@ def run_loop(
                     "reason": decision.reason,
                     "policy": MUTATION_POLICY_MAP.get(decision.reason, "FREEZE_NOW"),
                     "base_variant": decision.best_variant,
+                    "mutation_radius": _mutation_radius(),
                     "max_evaluations_reached": True,
                 },
             )
@@ -703,6 +801,9 @@ def run_loop(
                 "base_variant": mutation_meta.get("base_variant"),
                 "policy": mutation_meta.get("policy"),
                 "reason": mutation_meta.get("mutation_reason"),
+                "elite_count": mutation_meta.get("elite_count"),
+                "elite_variants": mutation_meta.get("elite_variants"),
+                "mutation_radius": mutation_meta.get("mutation_radius"),
                 "new_variants": mutation_meta.get("new_variants"),
             },
         )
