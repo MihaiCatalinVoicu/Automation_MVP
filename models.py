@@ -37,6 +37,12 @@ class TaskCreate(BaseModel):
     recipe: Optional[str] = None
     run_context: Optional[Dict[str, str]] = None
 
+    # canonical strategy registry cross-reference
+    strategy_id: Optional[str] = None
+    category_id: Optional[str] = None
+    change_kind: str = "code_change"
+    new_strategy_proposal: Optional[str] = None
+
 
 class RunResponse(BaseModel):
     run_id: str

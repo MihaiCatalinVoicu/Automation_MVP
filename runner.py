@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Tuple
 
 from approval_service import create_approval
+from artifact_store import register_validation_artifacts
 from cursor_executor import (
     CursorExecutionError,
     build_task_packet,
@@ -22,9 +23,14 @@ from db import (
     update_run_status,
 )
 from policies import classify_command
-from policy_engine import should_auto_escalate_to_premium
+from research_pipeline import research_metadata
+from experiment_ingest import collect_research_artifact_summary
+from policy_engine import should_auto_escalate_to_premium, validate_strategy_reference
+from registry_audit import run_registry_audit
 from recipe_runner import run_validation_battery
 from repo_registry import RepoRegistry, RepoRegistryError
+from strategy_lifecycle import run_due_reviews
+from strategy_registry import add_experiment_result, create_experiment, update_change_log
 
 AUTOMATION_ROOT = Path(__file__).resolve().parent
 
@@ -42,6 +48,7 @@ def run_pipeline(run_id: str, worker_id: str) -> None:
     except Exception as exc:
         update_run_status(run_id, "FAILED")
         insert_event(run_id, "run_failed_exception", {"error": str(exc)})
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"exception": str(exc)})
     finally:
         clear_execution_owner(run_id)
 
@@ -50,6 +57,7 @@ def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
     recipe = task.get("recipe") or (task.get("metadata") or {}).get("recipe")
     run_context = task.get("run_context") or {}
     run_dir = run_context.get("run_dir") or (task.get("metadata") or {}).get("run_dir")
+    metadata = task.get("metadata") or {}
     if not recipe or not run_dir:
         update_run_status(run_id, "FAILED")
         insert_event(
@@ -59,7 +67,7 @@ def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
         )
         return
 
-    context = {"run_dir": run_dir, "cwd": repo_path}
+    context = {"run_dir": run_dir, "cwd": repo_path, **run_context}
     output_dir = AUTOMATION_ROOT / "data" / "validation_artifacts" / run_id
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -77,19 +85,134 @@ def _run_validation_battery(run_id: str, task: dict, repo_path: str) -> None:
             "validation_battery_failed",
             {"error": str(exc)},
         )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"validation_battery_error": str(exc)})
         return
 
+    experiment_id = create_experiment(
+        strategy_id=task.get("strategy_id"),
+        repo=task.get("repo", "unknown"),
+        name=Path(recipe).stem,
+        hypothesis=task.get("goal", "validation_battery"),
+        run_dir=run_dir,
+        search_space={"recipe": recipe},
+        status=summary["verdict"],
+    )
+    add_experiment_result(
+        experiment_id=experiment_id,
+        strategy_id=task.get("strategy_id"),
+        run_dir=run_dir,
+        source_file=str(output_dir / "summary.json"),
+        result=summary,
+        verdict=summary["verdict"],
+    )
+    research_meta = research_metadata(task)
+    research_summary = collect_research_artifact_summary(output_dir)
+    family_summary = research_summary.get("family_summary", {}) if isinstance(research_summary, dict) else {}
+    robustness_summary = research_summary.get("robustness", {}) if isinstance(research_summary, dict) else {}
+    derived_research_metrics = {
+        "candidate_count": family_summary.get("candidate_count"),
+        "validation_ready": 1.0 if family_summary.get("research_verdict") == "SHADOW_CANDIDATE" else 0.0,
+        "window_passes": robustness_summary.get("window_passes"),
+        "cost_passes": robustness_summary.get("cost_passes"),
+    }
+    register_validation_artifacts(
+        run_id=run_id,
+        repo=task.get("repo", "unknown"),
+        output_dir=output_dir,
+        summary={**summary, **research_summary},
+        schedule_id=research_meta.get("schedule_id"),
+        strategy_id=task.get("strategy_id"),
+        family_name=research_meta.get("family_name"),
+    )
     insert_event(
         run_id,
         "validation_battery_completed",
         {
             "verdict": summary["verdict"],
             "metrics": summary.get("metrics", {}),
+            "research_summary": research_summary,
         },
     )
-    status = "COMPLETED" if summary["verdict"] != "REJECT" else "FAILED"
+    reject_is_completed = str(metadata.get("treat_reject_as_completed", "")).lower() == "true"
+    status = "COMPLETED" if (summary["verdict"] != "REJECT" or reject_is_completed) else "FAILED"
     update_run_status(run_id, status)
+    update_change_log(
+        run_id=run_id,
+        status="COMPLETED" if status == "COMPLETED" else "FAILED",
+        actual_impact={
+            "validation_battery_verdict": summary["verdict"],
+            "metrics": summary.get("metrics", {}),
+            "research_summary": research_summary,
+            **{k: v for k, v in derived_research_metrics.items() if v is not None},
+        },
+        strategy_id=task.get("strategy_id"),
+    )
     insert_event(run_id, "run_completed", {"message": f"Validation battery: {summary['verdict']}"})
+
+
+def _run_strategy_review(run_id: str, task: dict) -> None:
+    output_dir = AUTOMATION_ROOT / "data" / "strategy_reviews" / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        summary = run_due_reviews(
+            output_dir=output_dir,
+            repo=task.get("repo"),
+            strategy_id=task.get("strategy_id"),
+            review_kind=task.get("task_type") or "daily_strategy_review",
+        )
+    except Exception as exc:
+        update_run_status(run_id, "FAILED")
+        insert_event(run_id, "strategy_review_failed", {"error": str(exc)})
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"strategy_review_error": str(exc)})
+        return
+
+    insert_event(
+        run_id,
+        "strategy_review_completed",
+        {
+            "review_count": summary["review_count"],
+            "output_dir": str(output_dir),
+        },
+    )
+    update_run_status(run_id, "COMPLETED")
+    update_change_log(
+        run_id=run_id,
+        status="COMPLETED",
+        actual_impact={"strategy_reviews": summary["review_count"], "artifact_dir": str(output_dir)},
+        strategy_id=task.get("strategy_id"),
+    )
+    insert_event(run_id, "run_completed", {"message": "Strategy lifecycle review completed"})
+
+
+def _run_registry_audit(run_id: str, task: dict) -> None:
+    output_dir = AUTOMATION_ROOT / "data" / "registry_audits" / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    repo_names = [task.get("repo")] if task.get("repo") else []
+    try:
+        audits, exit_code = run_registry_audit(repo_names or ["crypto-bot", "stocks-bot"], output_dir)
+    except Exception as exc:
+        update_run_status(run_id, "FAILED")
+        insert_event(run_id, "registry_audit_failed", {"error": str(exc)})
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"registry_audit_error": str(exc)})
+        return
+
+    insert_event(
+        run_id,
+        "registry_audit_completed",
+        {
+            "repo_count": len(audits),
+            "output_dir": str(output_dir),
+            "summaries": [item["summary"] for item in audits],
+        },
+    )
+    status = "COMPLETED" if exit_code == 0 else "FAILED"
+    update_run_status(run_id, status)
+    update_change_log(
+        run_id=run_id,
+        status=status,
+        actual_impact={"registry_audit_exit_code": exit_code, "artifact_dir": str(output_dir)},
+    )
+    insert_event(run_id, "run_completed", {"message": "Registry audit completed", "exit_code": exit_code})
 
 
 def _run_pipeline(run_id: str) -> None:
@@ -106,10 +229,41 @@ def _run_pipeline(run_id: str) -> None:
     allowed_prefixes = repo_cfg.get("allowed_check_prefixes", [])
 
     insert_event(run_id, "run_started", {"routing": routing, "repo_path": repo_path})
+    strategy_result = validate_strategy_reference(repo_cfg, task)
+    if strategy_result.status == "failed":
+        update_run_status(run_id, "FAILED")
+        insert_event(
+            run_id,
+            "strategy_crossref_failed",
+            {
+                "reason": strategy_result.reason,
+                "decision": strategy_result.decision,
+                "candidates": strategy_result.candidates or [],
+            },
+        )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"strategy_crossref_error": strategy_result.reason})
+        return
+    insert_event(
+        run_id,
+        "strategy_crossref_runner_passed",
+        {
+            "decision": strategy_result.decision,
+            "reason": strategy_result.reason,
+            "strategy_id": task.get("strategy_id") or strategy_result.resolved_strategy_id,
+            "category_id": task.get("category_id") or strategy_result.resolved_category_id,
+        },
+    )
+    update_change_log(run_id=run_id, status="RUNNING", strategy_id=task.get("strategy_id") or strategy_result.resolved_strategy_id)
 
     task_type = (task.get("task_type") or "").lower()
     if task_type == "validation_battery":
         _run_validation_battery(run_id, task, repo_path)
+        return
+    if task_type == "registry_audit":
+        _run_registry_audit(run_id, task)
+        return
+    if task_type in {"strategy_review", "daily_strategy_review"}:
+        _run_strategy_review(run_id, task)
         return
 
     planner = routing.get("planner_agent", "none")
@@ -184,9 +338,11 @@ def _run_pipeline(run_id: str) -> None:
             "run_failed",
             {"command": command, "stderr": stderr[:1000], "stdout": stdout[:1000]},
         )
+        update_change_log(run_id=run_id, status="FAILED", actual_impact={"failed_check": command, "stderr": stderr[:500]})
         return
 
     update_run_status(run_id, "COMPLETED")
+    update_change_log(run_id=run_id, status="COMPLETED", actual_impact={"result": "checks_passed"})
     insert_event(run_id, "run_completed", {"message": "All checks passed"})
 
 

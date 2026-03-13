@@ -44,6 +44,14 @@ def build_task_packet(task: dict, routing: dict, repo_cfg: dict | None = None) -
         profiles = repo_cfg.get("profiles", [])
         if profiles:
             metadata["repo_profiles"] = profiles
+    if task.get("strategy_id"):
+        metadata["strategy_id"] = task.get("strategy_id")
+    if task.get("category_id"):
+        metadata["category_id"] = task.get("category_id")
+    if task.get("change_kind"):
+        metadata["change_kind"] = task.get("change_kind")
+    if task.get("new_strategy_proposal"):
+        metadata["new_strategy_proposal"] = task.get("new_strategy_proposal")
     return {
         "repo": task.get("repo"),
         "goal": task.get("goal"),
@@ -246,10 +254,18 @@ def _write_prompt_file(step_name: str, prompt: str) -> str:
 
 
 def _build_planner_prompt(task_file: str, packet: dict[str, Any]) -> str:
+    metadata = packet.get("metadata", {})
+    strategy_hint = ""
+    if metadata.get("strategy_id") or metadata.get("category_id"):
+        strategy_hint = (
+            f"\nStrategy context: strategy_id={metadata.get('strategy_id', 'n/a')} "
+            f"category_id={metadata.get('category_id', 'n/a')} change_kind={metadata.get('change_kind', 'n/a')}\n"
+        )
     return f"""You are the premium planning step for an automation orchestrator.
 
 Task packet: {task_file}
 Goal: {packet.get("goal", "")}
+{strategy_hint}
 
 Produce a short execution plan for the coding executor.
 
@@ -266,18 +282,29 @@ def _build_executor_prompt(task_file: str, packet: dict[str, Any], plan_summary:
     checks = packet.get("checks", [])
     metadata = packet.get("metadata", {})
     profiles = metadata.get("repo_profiles", [])
+    strategy_id = metadata.get("strategy_id")
+    category_id = metadata.get("category_id")
+    change_kind = metadata.get("change_kind")
     constraint_lines = "\n".join(f"- {item}" for item in constraints) or "- none"
     check_lines = "\n".join(f"- {item}" for item in checks) or "- none"
     plan_block = plan_summary.strip() or "No separate planner output."
     profile_line = ""
     if profiles:
         profile_line = f"\nRepo profiles: {', '.join(profiles)} – respect safe task classes (docs/read-only only when applicable).\n"
+    strategy_line = ""
+    if strategy_id or category_id:
+        strategy_line = (
+            f"Strategy registry context: strategy_id={strategy_id or 'n/a'}, "
+            f"category_id={category_id or 'n/a'}, change_kind={change_kind or 'n/a'}.\n"
+            "Treat this task as part of that registered strategy. Avoid creating duplicate parallel logic.\n"
+        )
 
     return f"""You are the coding executor for an automation orchestrator.
 
 Task packet: {task_file}
 Goal: {packet.get("goal", "")}
 {profile_line}
+{strategy_line}
 Constraints:
 {constraint_lines}
 
@@ -298,10 +325,18 @@ Execution rules:
 
 
 def _build_reviewer_prompt(task_file: str, packet: dict[str, Any], plan_summary: str) -> str:
+    metadata = packet.get("metadata", {})
+    strategy_hint = ""
+    if metadata.get("strategy_id") or metadata.get("category_id"):
+        strategy_hint = (
+            f"\nStrategy context: strategy_id={metadata.get('strategy_id', 'n/a')} "
+            f"category_id={metadata.get('category_id', 'n/a')} change_kind={metadata.get('change_kind', 'n/a')}\n"
+        )
     return f"""You are the premium review step for an automation orchestrator.
 
 Task packet: {task_file}
 Goal: {packet.get("goal", "")}
+{strategy_hint}
 
 Planner summary:
 {plan_summary.strip() or "No planner summary."}

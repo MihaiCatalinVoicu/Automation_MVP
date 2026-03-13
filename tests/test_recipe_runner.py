@@ -2,14 +2,16 @@
 """Unit tests for recipe_runner: extractors and rule evaluation."""
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from recipe_runner import apply_templates, evaluate_rules, compute_verdict
+from recipe_runner import _extract_json_metric, apply_templates, evaluate_rules, compute_verdict
 
 
 def test_apply_templates() -> None:
@@ -17,6 +19,14 @@ def test_apply_templates() -> None:
     s = "python --data-dir {{run_dir}} --cost {{cost_bps}}"
     out = apply_templates(s, ctx)
     assert out == "python --data-dir /data/batch/run_xxx --cost 30"
+
+
+def test_extract_json_metric() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "summary.json"
+        path.write_text(json.dumps({"summary_metrics": {"window_passes": 2}}), encoding="utf-8")
+        val = _extract_json_metric(str(path), "summary_metrics.window_passes", {})
+        assert val == 2.0
 
 
 def test_evaluate_rules_pass() -> None:
@@ -64,6 +74,7 @@ def test_compute_verdict_warn() -> None:
 
 if __name__ == "__main__":
     test_apply_templates()
+    test_extract_json_metric()
     test_evaluate_rules_pass()
     test_evaluate_rules_fail()
     test_compute_verdict_promote()

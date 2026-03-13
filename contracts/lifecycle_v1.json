@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automation-mvp.local/contracts/lifecycle_v1.json",
+  "title": "LifecycleRecordV1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "idempotency_key",
+    "event_type",
+    "repo",
+    "environment",
+    "strategy_id",
+    "family",
+    "run_id",
+    "ts",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "lifecycle_v1"
+    },
+    "event_id": { "type": "string" },
+    "idempotency_key": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": ["scan_summary", "signal", "decision", "order_submitted", "fill", "exit", "outcome", "postmortem"]
+    },
+    "repo": { "type": "string" },
+    "environment": {
+      "type": "string",
+      "enum": ["research", "paper", "live"]
+    },
+    "strategy_id": { "type": "string" },
+    "family": { "type": "string" },
+    "variant_id": { "type": ["string", "null"] },
+    "profile_id": { "type": ["string", "null"] },
+    "run_id": { "type": "string" },
+    "signal_id": { "type": "string" },
+    "decision_id": { "type": ["string", "null"] },
+    "position_id": { "type": ["string", "null"] },
+    "symbol": { "type": "string" },
+    "side": { "type": "string", "enum": ["long", "short"] },
+    "ts": { "type": "string" },
+    "signal_ts": { "type": ["string", "null"] },
+    "decision_ts": { "type": ["string", "null"] },
+    "entry_ts": { "type": ["string", "null"] },
+    "exit_ts": { "type": ["string", "null"] },
+    "entry_reason": { "type": ["string", "null"] },
+    "exit_reason": { "type": ["string", "null"] },
+    "qty": { "type": ["number", "null"] },
+    "entry_price": { "type": ["number", "null"] },
+    "exit_price": { "type": ["number", "null"] },
+    "gross_pnl": { "type": ["number", "null"] },
+    "net_pnl": { "type": ["number", "null"] },
+    "fees": { "type": ["number", "null"] },
+    "slippage_bps": { "type": ["number", "null"] },
+    "outcome_label": { "type": ["string", "null"] },
+    "postmortem_ref": { "type": ["string", "null"] },
+    "source_file": { "type": ["string", "null"] },
+    "source_line": { "type": ["integer", "null"] },
+    "scan_status": { "type": ["string", "null"] },
+    "reason": { "type": ["string", "null"] },
+    "universe_size": { "type": ["integer", "null"] },
+    "symbols_scanned": { "type": ["integer", "null"] },
+    "candidates_found": { "type": ["integer", "null"] },
+    "signals_emitted": { "type": ["integer", "null"] },
+    "decisions_emitted": { "type": ["integer", "null"] },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        { "required": ["variant_id"] },
+        { "required": ["profile_id"] }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "scan_summary" }
+        }
+      },
+      "then": {
+        "required": ["scan_status"]
+      },
+      "else": {
+        "required": ["signal_id", "symbol", "side"]
+      }
+    }
+  ]
+}

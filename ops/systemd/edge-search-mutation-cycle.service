@@ -1,0 +1,9 @@
+[Unit]
+Description=Edge search mutation cycle
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/automation-mvp
+EnvironmentFile=-/srv/automation-mvp/ops/systemd/edge-search.env
+ExecStart=/srv/automation-mvp/.venv/bin/python mutation_cycle.py --since-hours 72 --limit 25 --output-json /srv/automation-mvp/data/reports/mutation_cycle_latest.json

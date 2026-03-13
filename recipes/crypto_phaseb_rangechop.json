@@ -4,15 +4,15 @@
   "commands": [
     {
       "id": "replay_rangechop",
-      "cmd": ".venv/bin/python scripts/portfolio_replay.py --data-dir {{run_dir}} --ml-file ml_events.csv --outcomes-file outcomes_hs_-0.02.csv --regime-file regime_assignments.csv --allow-regimes TREND_STRONG,RANGE_CHOP --allow-setups Breakout --cooldown-hours 24 --cost-bps 30 --max-positions 1 --from-date 2024-09-10 --to-date 2025-01-01 --write-executed-trades"
+      "cmd": "\"{{python_bin}}\" scripts/portfolio_replay.py --data-dir \"{{run_dir}}\" --ml-file ml_events.csv --outcomes-file outcomes_hs_-0.02.csv --regime-file regime_assignments.csv --allow-regimes TREND_STRONG,RANGE_CHOP --allow-setups Breakout --cooldown-hours 24 --cost-bps 30 --max-positions 1 --from-date 2024-09-10 --to-date 2025-01-01 --write-executed-trades"
     },
     {
       "id": "cost_sensitivity",
-      "cmd": ".venv/bin/python scripts/cost_sensitivity.py --data-dir {{run_dir}} --executed-trades"
+      "cmd": "\"{{python_bin}}\" scripts/cost_sensitivity.py --data-dir \"{{run_dir}}\" --executed-trades"
     },
     {
       "id": "concentration",
-      "cmd": ".venv/bin/python scripts/concentration_check.py --data-dir {{run_dir}} --cost-bps 30"
+      "cmd": "\"{{python_bin}}\" scripts/concentration_check.py --data-dir \"{{run_dir}}\" --cost-bps 30"
     }
   ],
   "extractors": [

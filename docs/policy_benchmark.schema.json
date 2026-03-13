@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automation-mvp.local/schemas/policy_benchmark.schema.json",
+  "title": "Policy Benchmark",
+  "type": "object",
+  "required": ["version", "loops_root", "policy_version_filter", "loop_count", "families", "loops"],
+  "properties": {
+    "version": { "type": "integer" },
+    "loops_root": { "type": "string" },
+    "policy_version_filter": { "type": "string" },
+    "loop_count": { "type": "integer" },
+    "families": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "loops",
+          "status_counts",
+          "failure_mode_counts",
+          "policy_counts",
+          "mutation_events_count",
+          "mutation_skipped_due_to_budget",
+          "mutation_transition_count",
+          "mutation_improved_steps",
+          "success_loops",
+          "freeze_loops",
+          "avg_unique_config_fingerprints_per_loop",
+          "robustness_improvement_steps_total",
+          "any_metric_improved_steps_total",
+          "mutation_improvement_rate",
+          "loop_success_rate",
+          "loop_freeze_rate",
+          "budget_skip_rate"
+        ],
+        "properties": {
+          "loops": { "type": "integer" },
+          "status_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "failure_mode_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "policy_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "mutation_events_count": { "type": "integer" },
+          "mutation_skipped_due_to_budget": { "type": "integer" },
+          "mutation_transition_count": { "type": "integer" },
+          "mutation_improved_steps": { "type": "integer" },
+          "success_loops": { "type": "integer" },
+          "freeze_loops": { "type": "integer" },
+          "avg_unique_config_fingerprints_per_loop": { "type": "number" },
+          "robustness_improvement_steps_total": { "type": "integer" },
+          "any_metric_improved_steps_total": { "type": "integer" },
+          "mutation_improvement_rate": { "type": ["number", "null"] },
+          "loop_success_rate": { "type": ["number", "null"] },
+          "loop_freeze_rate": { "type": ["number", "null"] },
+          "budget_skip_rate": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "loops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "loop_id",
+          "family_id",
+          "policy_version",
+          "is_v2",
+          "status",
+          "generation_count",
+          "history_count",
+          "terminal_failure_mode",
+          "policies_exercised",
+          "fingerprints_seen",
+          "unique_config_fingerprints",
+          "failure_mode_counts",
+          "policy_counts",
+          "mutation_events_count",
+          "mutation_skipped_due_to_budget",
+          "robustness_improved_steps",
+          "any_metric_improved_steps",
+          "mutation_transition_count",
+          "mutation_improved_steps",
+          "success_terminal",
+          "freeze_terminal"
+        ],
+        "properties": {
+          "loop_id": { "type": "string" },
+          "family_id": { "type": "string" },
+          "policy_version": { "type": "string" },
+          "is_v2": { "type": "boolean" },
+          "status": { "type": "string" },
+          "generation_count": { "type": "integer" },
+          "history_count": { "type": "integer" },
+          "terminal_failure_mode": { "type": "string" },
+          "policies_exercised": { "type": "array", "items": { "type": "string" } },
+          "fingerprints_seen": { "type": "array", "items": { "type": "string" } },
+          "unique_config_fingerprints": { "type": "integer" },
+          "failure_mode_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "policy_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "mutation_events_count": { "type": "integer" },
+          "mutation_skipped_due_to_budget": { "type": "integer" },
+          "robustness_improved_steps": { "type": "integer" },
+          "any_metric_improved_steps": { "type": "integer" },
+          "mutation_transition_count": { "type": "integer" },
+          "mutation_improved_steps": { "type": "integer" },
+          "success_terminal": { "type": "integer" },
+          "freeze_terminal": { "type": "integer" },
+          "started_at": { "type": ["string", "null"] },
+          "ended_at": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

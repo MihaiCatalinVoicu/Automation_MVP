@@ -10,8 +10,10 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
+from datetime import datetime, timezone
 
 
 def load_recipe(recipe_path: str, base_path: Path | None = None) -> dict:
@@ -30,6 +32,38 @@ def apply_templates(text: str, context: dict[str, Any]) -> str:
     return text
 
 
+def _extract_json_metric(json_file: str, json_path: str, context: dict[str, Any]) -> float | None:
+    path = Path(apply_templates(json_file, context)).expanduser().resolve()
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    value: Any = data
+    for chunk in json_path.split("."):
+        if isinstance(value, dict):
+            value = value.get(chunk)
+        else:
+            return None
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _resolve_python_bin(cwd_path: Path) -> str:
+    candidates = [
+        cwd_path / ".venv" / "Scripts" / "python.exe",
+        cwd_path / ".venv" / "bin" / "python",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    if sys.executable:
+        return sys.executable
+    return "python"
+
+
 def run_commands(
     recipe: dict,
     context: dict[str, Any],
@@ -42,6 +76,8 @@ def run_commands(
         cwd = context.get("cwd", ".")
     cwd = apply_templates(str(cwd), context)
     cwd_path = Path(cwd).expanduser().resolve()
+    if not context.get("python_bin"):
+        context["python_bin"] = _resolve_python_bin(cwd_path)
 
     commands = recipe.get("commands", [])
     step_outputs: dict[str, dict] = {}
@@ -87,17 +123,25 @@ def run_commands(
         for ex in recipe.get("extractors", []):
             if ex.get("source") != cmd_id:
                 continue
-            regex = ex.get("regex")
             metric = ex.get("metric")
-            if not regex or not metric:
+            if not metric:
+                continue
+            if ex.get("json_file") and ex.get("json_path"):
+                val = _extract_json_metric(ex["json_file"], ex["json_path"], context)
+                if val is not None:
+                    metrics[metric] = val
+                continue
+            regex = ex.get("regex")
+            if not regex:
                 continue
             m = re.search(regex, combined)
-            if m:
-                try:
-                    val = float(m.group(1).replace(",", "."))
-                    metrics[metric] = val
-                except (ValueError, IndexError):
-                    pass
+            if not m:
+                continue
+            try:
+                val = float(m.group(1).replace(",", "."))
+                metrics[metric] = val
+            except (ValueError, IndexError):
+                pass
 
     return step_outputs, metrics
 
@@ -157,6 +201,7 @@ def run_validation_battery(
 ) -> dict[str, Any]:
     recipe = load_recipe(recipe_path, base_path)
     context = dict(run_context)
+    context["battery_output_dir"] = str(output_dir.resolve())
     continue_on_error = recipe.get("continue_on_error", False)
 
     step_outputs, metrics = run_commands(recipe, context, output_dir, continue_on_error)
@@ -180,6 +225,14 @@ def run_validation_battery(
     return summary
 
 
+def _infer_repo_root_from_run_dir(run_dir: Path) -> Path | None:
+    """Find repo root by walking ancestors for the research entrypoint."""
+    for candidate in (run_dir, *run_dir.parents):
+        if (candidate / "scripts" / "run_cohort_research.py").exists():
+            return candidate
+    return None
+
+
 def _main() -> int:
     import argparse
     ap = argparse.ArgumentParser(description="Run validation battery (dry-run)")
@@ -187,19 +240,48 @@ def _main() -> int:
     ap.add_argument("run_dir", help="Crypto run dir (e.g. .../data/batch/run_top50_xxx)")
     ap.add_argument("--output-dir", default=None, help="Output dir (default: data/validation_artifacts/<run_id>)")
     ap.add_argument("--base-path", default=None, help="Base path for recipe resolution (default: script dir)")
+    ap.add_argument(
+        "--repo-root",
+        default=None,
+        help="Optional explicit crypto repo root (must contain scripts/run_cohort_research.py)",
+    )
+    ap.add_argument(
+        "--cohort-config",
+        default=None,
+        help="Optional cohort config path (default: cwd/configs/research_cohort_month1.json)",
+    )
     args = ap.parse_args()
 
     base = Path(__file__).resolve().parent
     base_path = Path(args.base_path) if args.base_path else base
     run_dir = Path(args.run_dir).expanduser().resolve()
-    cwd = run_dir
-    for _ in range(3):
-        cwd = cwd.parent
-        if (cwd / "scripts" / "portfolio_replay.py").exists():
-            break
+    cwd: Path | None = None
+    if args.repo_root:
+        candidate = Path(args.repo_root).expanduser().resolve()
+        if not (candidate / "scripts" / "run_cohort_research.py").exists():
+            print(f"ERROR: --repo-root is invalid (missing scripts/run_cohort_research.py): {candidate}")
+            return 1
+        cwd = candidate
     else:
-        cwd = run_dir.parent.parent.parent
+        cwd = _infer_repo_root_from_run_dir(run_dir)
+    if cwd is None:
+        print(
+            "ERROR: Could not infer crypto repo root from run_dir. "
+            "Pass a run_dir under the crypto repo (e.g. .../data/research_runs/.../candidate_run) "
+            "or provide --repo-root explicitly."
+        )
+        return 1
     context = {"run_dir": str(run_dir), "cwd": str(cwd)}
+    cohort_path = args.cohort_config
+    if cohort_path:
+        cohort_path = Path(cohort_path).expanduser().resolve()
+        if not cohort_path.exists():
+            print(f"ERROR: --cohort-config not found: {cohort_path}")
+            return 1
+        context["cohort_config"] = str(cohort_path)
+    else:
+        context["cohort_config"] = str(cwd / "configs" / "research_cohort_month1.json")
+    context["run_date"] = datetime.now(timezone.utc).date().isoformat()
 
     out = args.output_dir or str(base / "data" / "validation_artifacts" / run_dir.name)
     output_dir = Path(out)

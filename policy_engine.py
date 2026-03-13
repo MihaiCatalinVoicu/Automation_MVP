@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from strategy_registry import CrossRefResult, preflight_cross_reference
+
 RiskLevel = Literal["LOW", "MEDIUM", "HIGH"]
 PolicyStatus = Literal["passed", "failed", "needs_approval"]
 
@@ -54,6 +56,17 @@ class PolicyResult:
     reason: str
     escalation_required: bool = False
     needs_pre_approval: bool = False
+
+
+@dataclass
+class StrategyPolicyResult:
+    status: Literal["passed", "failed"]
+    reason: str
+    decision: str
+    resolved_strategy_id: str | None = None
+    resolved_category_id: str | None = None
+    requires_registry_update: bool = False
+    candidates: list[dict] | None = None
 
 
 def validate_task(repo_cfg: dict, task: dict) -> PolicyResult:
@@ -157,3 +170,35 @@ def _checks_are_readonly_safe(checks: list[str]) -> bool:
 
 def should_auto_escalate_to_premium(repo_cfg: dict) -> bool:
     return "premium_on_repeat_failures" in repo_cfg.get("profiles", [])
+
+
+def validate_strategy_reference(repo_cfg: dict, task: dict) -> StrategyPolicyResult:
+    task_type = (task.get("task_type") or "").lower()
+    if task_type in {"registry_audit", "strategy_review", "daily_strategy_review"}:
+        return StrategyPolicyResult(
+            status="passed",
+            reason="internal governance task bypasses strategy_id requirement",
+            decision="ALLOW",
+            resolved_strategy_id=task.get("strategy_id"),
+            resolved_category_id=task.get("category_id"),
+        )
+    result: CrossRefResult = preflight_cross_reference(task, repo_cfg)
+    if result.decision in {"BLOCK_DUPLICATE", "BLOCK_UNSCOPED_CHANGE", "REQUIRES_NEW_STRATEGY_ENTRY"}:
+        return StrategyPolicyResult(
+            status="failed",
+            reason=result.reason,
+            decision=result.decision,
+            resolved_strategy_id=result.strategy_id,
+            resolved_category_id=result.category_id,
+            requires_registry_update=result.requires_registry_update,
+            candidates=result.candidates,
+        )
+    return StrategyPolicyResult(
+        status="passed",
+        reason=result.reason,
+        decision=result.decision,
+        resolved_strategy_id=result.strategy_id,
+        resolved_category_id=result.category_id,
+        requires_registry_update=result.requires_registry_update,
+        candidates=result.candidates,
+    )
