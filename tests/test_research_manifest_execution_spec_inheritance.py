@@ -105,6 +105,10 @@ def test_initial_research_manifest_requires_execution_spec_and_child_inherits() 
     child_spec = json.loads(child["execution_spec_json"])
     for key in ("family", "config_path", "recipe_path", "repo_root"):
         assert child_spec.get(key) == required_execution_spec[key]
+    assert child_spec.get("validation_level") == "cheap"
+    assert child_spec.get("budget_cost") == 1
+    assert child_spec.get("batch_size") == 12
+    assert child_spec.get("variants_per_generation") == 12
 
     # Child spec is structurally valid for adapter preconditions.
     missing = [k for k in ("family", "config_path", "recipe_path", "repo_root") if not str(child_spec.get(k) or "").strip()]

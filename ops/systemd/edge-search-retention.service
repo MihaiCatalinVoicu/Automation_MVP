@@ -1,0 +1,9 @@
+[Unit]
+Description=Cleanup old edge search artifacts
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/automation-mvp
+EnvironmentFile=-/srv/automation-mvp/ops/systemd/edge-search.env
+ExecStart=/srv/automation-mvp/.venv/bin/python research_retention.py --cheap-days 3 --medium-days 14 --output-json /srv/automation-mvp/data/reports/research_retention_latest.json

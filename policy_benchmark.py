@@ -76,6 +76,9 @@ def _loop_summary(loop_dir: Path) -> dict[str, Any] | None:
     failure_counts = Counter(str(item.get("dominant_failure_mode") or "unknown") for item in history)
     terminal_failure_mode = str((history[-1].get("dominant_failure_mode") or "unknown"))
     policies_exercised = sorted(policy_counts.keys())
+    first_battery = history[0].get("battery_metrics") or {}
+    max_window_passes = _as_float(first_battery.get("window_passes"))
+    max_average_profit_factor = _as_float(first_battery.get("average_profit_factor"))
 
     robustness_improved_steps = 0
     any_metric_improved_steps = 0
@@ -88,6 +91,8 @@ def _loop_summary(loop_dir: Path) -> dict[str, Any] | None:
         cur_w = _as_float(cur_b.get("window_passes"))
         prev_avg_pf = _as_float(prev_b.get("average_profit_factor"))
         cur_avg_pf = _as_float(cur_b.get("average_profit_factor"))
+        max_window_passes = max(max_window_passes, cur_w)
+        max_average_profit_factor = max(max_average_profit_factor, cur_avg_pf)
         robust_up = cur_w > prev_w or cur_avg_pf > prev_avg_pf
         if robust_up:
             robustness_improved_steps += 1
@@ -127,6 +132,9 @@ def _loop_summary(loop_dir: Path) -> dict[str, Any] | None:
         "policy_counts": dict(policy_counts),
         "mutation_events_count": len(mutation_events),
         "mutation_skipped_due_to_budget": skipped_due_to_budget,
+        "max_window_passes": max_window_passes,
+        "max_average_profit_factor": max_average_profit_factor,
+        "robustness_survived": 1 if (max_window_passes >= 1.0 or max_average_profit_factor >= 1.05) else 0,
         "robustness_improved_steps": robustness_improved_steps,
         "any_metric_improved_steps": any_metric_improved_steps,
         "mutation_transition_count": mutation_transition_count,
@@ -157,6 +165,7 @@ def build_benchmark(
             "any_metric_improved_steps": 0,
             "mutation_transition_count": 0,
             "mutation_improved_steps": 0,
+            "robustness_survived_loops": 0,
             "success_loops": 0,
             "freeze_loops": 0,
         }
@@ -186,6 +195,7 @@ def build_benchmark(
         bucket["any_metric_improved_steps"] += _as_int(row.get("any_metric_improved_steps"))
         bucket["mutation_transition_count"] += _as_int(row.get("mutation_transition_count"))
         bucket["mutation_improved_steps"] += _as_int(row.get("mutation_improved_steps"))
+        bucket["robustness_survived_loops"] += _as_int(row.get("robustness_survived"))
         bucket["success_loops"] += _as_int(row.get("success_terminal"))
         bucket["freeze_loops"] += _as_int(row.get("freeze_terminal"))
 
@@ -212,6 +222,7 @@ def build_benchmark(
                 bucket["unique_config_fingerprints_total"] / loops_n, 3
             ),
             "robustness_improvement_steps_total": int(bucket["robustness_improved_steps"]),
+            "robustness_survival_rate": _safe_rate(int(bucket["robustness_survived_loops"]), int(bucket["loops"])),
             "any_metric_improved_steps_total": int(bucket["any_metric_improved_steps"]),
             "mutation_improvement_rate": _safe_rate(mutation_improved, mutation_transitions),
             "loop_success_rate": _safe_rate(successes, int(bucket["loops"])),

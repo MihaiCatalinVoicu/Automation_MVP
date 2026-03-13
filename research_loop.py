@@ -27,6 +27,10 @@ MUTATION_POLICY_MAP = {
     "high_trades_bad_dd": "RISK_DOWN",
     "high_trades_low_pf": "EDGE_UP",
     "good_pf_bad_dd": "LOSS_SHAPE_DOWN",
+    "edge_near_miss_refine": "EDGE_UP",
+    "bull_only_viability": "EDGE_UP",
+    "bear_only_viability": "EDGE_UP",
+    "sideways_collapse": "LOSS_SHAPE_DOWN",
     "high_concentration": "DIVERSIFY",
     "pf_bad_dd_bad": "FREEZE_NOW",
     "robustness_warn": "EDGE_UP",
@@ -110,8 +114,23 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
         f.write(json.dumps(payload) + "\n")
 
 
+def _canonicalize_for_fingerprint(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _canonicalize_for_fingerprint(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_canonicalize_for_fingerprint(item) for item in value]
+    if isinstance(value, tuple):
+        return [_canonicalize_for_fingerprint(item) for item in value]
+    if isinstance(value, float):
+        rounded = round(value, 6)
+        if rounded.is_integer():
+            return int(rounded)
+        return rounded
+    return value
+
+
 def _config_fingerprint(cfg: dict[str, Any]) -> str:
-    payload = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
+    payload = json.dumps(_canonicalize_for_fingerprint(cfg), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
@@ -369,48 +388,87 @@ def _bump_int(item: dict[str, Any], key: str, delta: int, min_value: int | None 
     return True
 
 
+def _variant_signature(variant: dict[str, Any]) -> str:
+    payload = {k: v for k, v in variant.items() if k != "variant_name"}
+    return json.dumps(_canonicalize_for_fingerprint(payload), sort_keys=True, separators=(",", ":"))
+
+
 def _apply_family_policy_variant(family_id: str, policy: str, variant: dict[str, Any], dataset: dict[str, Any], suffix: str) -> dict[str, Any]:
     item = copy.deepcopy(variant)
     changed = 0
+    suffix_num = int("".join(ch for ch in suffix if ch.isdigit()) or "1")
+    alt = suffix_num % 2 == 0
     if family_id == "spike_mean_reversion":
         if policy == "FREQUENCY_UP":
-            changed += 1 if _bump(item, "spike_drop_pct", -0.01, min_value=0.03) else 0
-            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", 5.0, max_value=40.0) else 0
+            changed += 1 if _bump(item, "spike_drop_pct", -0.01 if not alt else -0.015, min_value=0.03) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", 5.0 if not alt else 3.0, max_value=40.0) else 0
         elif policy == "LOSS_SHAPE_DOWN":
-            changed += 1 if _bump_int(item, "hold_bars", -1, min_value=1) else 0
-            changed += 1 if changed < 2 and _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
+            changed += 1 if _bump_int(item, "hold_bars", -1 if not alt else -2, min_value=1) else 0
+            changed += 1 if changed < 2 and _bump(dataset, "hard_stop_pct", 0.005 if not alt else 0.0075, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_reclaim_min", 0.002 if not alt else 0.004, min_value=0.0) else 0
         elif policy == "EDGE_UP":
-            changed += 1 if _bump(item, "spike_vol_mult", 0.5) else 0
-            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", -5.0, min_value=10.0) else 0
+            changed += 1 if _bump(item, "spike_vol_mult", 0.5 if not alt else 0.3) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_rsi_max", -5.0 if not alt else -3.0, min_value=10.0) else 0
     elif family_id == "breakout_momentum":
         if policy == "FREQUENCY_UP":
-            changed += 1 if _bump_int(item, "breakout_lookback", -2, min_value=3) else 0
-            changed += 1 if changed < 2 and _bump(item, "breakout_vol_mult", -0.2, min_value=1.0) else 0
+            changed += 1 if _bump_int(item, "breakout_lookback", -2 if not alt else -4, min_value=3) else 0
+            changed += 1 if changed < 2 and _bump(item, "breakout_vol_mult", -0.2 if not alt else -0.1, min_value=1.0) else 0
         elif policy in {"RISK_DOWN", "LOSS_SHAPE_DOWN"}:
-            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
-            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005 if not alt else 0.0075, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1 if not alt else -2, min_value=1) else 0
         elif policy == "EDGE_UP":
-            changed += 1 if _bump(item, "breakout_vol_mult", 0.5) else 0
-            changed += 1 if changed < 2 and _bump(item, "breakout_rsi_max", -4.0, min_value=40.0) else 0
+            changed += 1 if _bump(item, "breakout_vol_mult", 0.5 if not alt else 0.25) else 0
+            changed += 1 if changed < 2 and _bump(item, "breakout_rsi_max", -4.0 if not alt else -2.0, min_value=40.0) else 0
     elif family_id == "cross_sectional_momentum":
         if policy == "DIVERSIFY":
-            changed += 1 if _bump_int(item, "top_k", 2, min_value=2) else 0
+            changed += 1 if _bump_int(item, "top_k", 2 if not alt else 3, min_value=2) else 0
             if changed < 2 and item.get("weighting") == "rank_weighted":
                 item["weighting"] = "equal_weight"
                 changed += 1
         elif policy == "EDGE_UP":
-            changed += 1 if _bump_int(item, "rank_window", 24, min_value=12) else 0
-            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+            changed += 1 if _bump_int(item, "ranking_bars", 2 if not alt else 4, min_value=4) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1 if not alt else -2, min_value=1) else 0
     elif family_id in {"oi_cascade", "liquidation_sweep"}:
         if policy == "FREQUENCY_UP":
-            changed += 1 if _bump(item, "oi_jump_min", -0.02, min_value=0.01) else 0
-            changed += 1 if changed < 2 and _bump(item, "price_drop_min", -0.01, min_value=0.01) else 0
+            changed += 1 if _bump(item, "oi_jump_min", -0.02 if not alt else -0.03, min_value=0.01) else 0
+            changed += 1 if changed < 2 and _bump(item, "price_drop_min", -0.01 if not alt else -0.005, min_value=0.01) else 0
         elif policy == "LOSS_SHAPE_DOWN":
-            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005, max_value=-0.01) else 0
-            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1, min_value=1) else 0
+            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005 if not alt else 0.0075, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1 if not alt else -2, min_value=1) else 0
         elif policy == "EDGE_UP":
-            changed += 1 if _bump(item, "oi_jump_min", 0.02) else 0
-            changed += 1 if changed < 2 and _bump(item, "spike_vol_mult", 0.5) else 0
+            changed += 1 if _bump(item, "oi_jump_min", 0.02 if not alt else 0.03) else 0
+            changed += 1 if changed < 2 and _bump(item, "spike_vol_mult", 0.5 if not alt else 0.3) else 0
+    elif family_id == "trend_volatility_expansion":
+        mode = (suffix_num - 1) % 4
+        if policy == "FREQUENCY_UP":
+            changed += 1 if _bump_int(item, "compression_window", (-2, 2, -1, 3)[mode], min_value=8) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "breakout_lookback", (-2, -4, 2, 4)[mode], min_value=6) else 0
+        elif policy in {"RISK_DOWN", "LOSS_SHAPE_DOWN"}:
+            changed += 1 if _bump(item, "atr_stop_mult", (-0.2, -0.35, -0.15, -0.3)[mode], min_value=1.0) else 0
+            changed += 1 if changed < 2 and _bump(item, "atr_trail_mult", (-0.2, -0.1, -0.15, -0.05)[mode], min_value=1.2) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump(item, "compression_atr_ratio_max", (-0.05, -0.02, -0.04, -0.01)[mode], min_value=0.3) else 0
+            changed += 1 if changed < 2 and _bump(item, "volume_zscore_min", (0.2, -0.1, 0.1, 0.3)[mode], min_value=0.5) else 0
+    elif family_id == "relative_strength_rotation":
+        if policy == "DIVERSIFY":
+            changed += 1 if _bump_int(item, "top_k", 2 if not alt else 1, min_value=3) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1 if not alt else 1, min_value=1) else 0
+        elif policy == "FREQUENCY_UP":
+            changed += 1 if _bump_int(item, "ranking_bars", -2 if not alt else 2, min_value=3) else 0
+            changed += 1 if changed < 2 and _bump_int(item, "hold_bars", -1 if not alt else 1, min_value=1) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump_int(item, "ranking_bars", 2 if not alt else 4, min_value=3) else 0
+            changed += 1 if changed < 2 and _bump(item, "stop_atr_mult", -0.1 if not alt else 0.1, min_value=1.0) else 0
+    elif family_id == "pullback_in_trend":
+        if policy == "FREQUENCY_UP":
+            changed += 1 if _bump(item, "pullback_near_atr_mult", 0.1 if not alt else 0.2, min_value=0.4) else 0
+            changed += 1 if changed < 2 and _bump(item, "pullback_vol_max", 0.05 if not alt else 0.1, min_value=0.5, max_value=1.5) else 0
+        elif policy in {"RISK_DOWN", "LOSS_SHAPE_DOWN"}:
+            changed += 1 if _bump(dataset, "hard_stop_pct", 0.005 if not alt else 0.0075, max_value=-0.01) else 0
+            changed += 1 if changed < 2 and _bump(item, "pullback_near_atr_mult", -0.05 if not alt else -0.1, min_value=0.4) else 0
+        elif policy == "EDGE_UP":
+            changed += 1 if _bump(item, "pullback_vol_max", -0.05 if not alt else -0.1, min_value=0.5, max_value=1.5) else 0
+            changed += 1 if changed < 2 and _bump(item, "pullback_near_atr_mult", -0.05 if not alt else 0.05, min_value=0.4) else 0
     # Fallback keeps loop alive with bounded, small changes.
     if changed == 0:
         _bump(item, "breakout_vol_mult", 0.1)
@@ -433,12 +491,30 @@ def mutate_config(
     policy = MUTATION_POLICY_MAP.get(decision.reason, "FREEZE_NOW")
     if policy == "FREEZE_NOW":
         raise ValueError(f"No mutation allowed for reason={decision.reason}")
-    new_variants = [
-        _apply_family_policy_variant(family_id, policy, base_variant, cfg["dataset"], "g1"),
-        _apply_family_policy_variant(family_id, policy, base_variant, cfg["dataset"], "g2"),
-    ]
+    base_dataset = copy.deepcopy(cfg["dataset"])
+    chosen_dataset: dict[str, Any] | None = None
+    generated: list[dict[str, Any]] = []
+    seen_signatures: set[str] = set()
+    for idx in range(1, max(1, variants_per_generation) + 3):
+        dataset_copy = copy.deepcopy(base_dataset)
+        candidate = _apply_family_policy_variant(family_id, policy, base_variant, dataset_copy, f"g{idx}")
+        signature = _variant_signature(candidate)
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        generated.append(candidate)
+        if chosen_dataset is None:
+            chosen_dataset = dataset_copy
+        if len(generated) >= max(1, variants_per_generation):
+            break
+    if not generated:
+        dataset_copy = copy.deepcopy(base_dataset)
+        generated = [_apply_family_policy_variant(family_id, policy, base_variant, dataset_copy, "g1")]
+        chosen_dataset = dataset_copy
 
-    family_cfg["variants"] = new_variants[: max(1, variants_per_generation)]
+    family_cfg["variants"] = generated[: max(1, variants_per_generation)]
+    if chosen_dataset is not None:
+        cfg["dataset"] = chosen_dataset
     cfg["families"] = {family_id: family_cfg}
     cfg["cohort_name"] = f"{cfg.get('cohort_name', family_id)}_{decision.reason}"
     mutation_meta = {

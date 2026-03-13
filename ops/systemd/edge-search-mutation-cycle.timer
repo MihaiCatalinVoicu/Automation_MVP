@@ -1,0 +1,10 @@
+[Unit]
+Description=Run edge search mutation cycle every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+Unit=edge-search-mutation-cycle.service
+
+[Install]
+WantedBy=timers.target

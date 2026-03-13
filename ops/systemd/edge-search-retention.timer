@@ -1,0 +1,10 @@
+[Unit]
+Description=Cleanup old edge search artifacts daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=edge-search-retention.service
+
+[Install]
+WantedBy=timers.target

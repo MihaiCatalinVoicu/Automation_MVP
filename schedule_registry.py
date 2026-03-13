@@ -14,6 +14,51 @@ ROOT = Path(__file__).resolve().parent
 
 DEFAULT_RESEARCH_SCHEDULES = [
     {
+        "id": "trend_volatility_expansion_daily",
+        "repo": "crypto-bot",
+        "strategy_id": "trend_volatility_expansion",
+        "family_name": "trend_volatility_expansion",
+        "recipe_path": "recipes/trend_volatility_expansion_daily.json",
+        "cohort_config_path": "configs/research_cohort_edge_discovery_v2.json",
+        "cadence": "daily",
+        "enabled": True,
+        "artifact_root": "data/research_artifacts/trend_volatility_expansion",
+        "config": {
+            "run_hour_utc": 0,
+            "summary_family": "trend_volatility_expansion",
+        },
+    },
+    {
+        "id": "relative_strength_rotation_daily",
+        "repo": "crypto-bot",
+        "strategy_id": "relative_strength_rotation",
+        "family_name": "relative_strength_rotation",
+        "recipe_path": "recipes/relative_strength_rotation_daily.json",
+        "cohort_config_path": "configs/research_cohort_edge_discovery_v2.json",
+        "cadence": "daily",
+        "enabled": True,
+        "artifact_root": "data/research_artifacts/relative_strength_rotation",
+        "config": {
+            "run_hour_utc": 4,
+            "summary_family": "relative_strength_rotation",
+        },
+    },
+    {
+        "id": "pullback_in_trend_daily",
+        "repo": "crypto-bot",
+        "strategy_id": "pullback_in_trend",
+        "family_name": "pullback_in_trend",
+        "recipe_path": "recipes/pullback_in_trend_daily.json",
+        "cohort_config_path": "configs/research_cohort_edge_discovery_v2.json",
+        "cadence": "daily",
+        "enabled": True,
+        "artifact_root": "data/research_artifacts/pullback_in_trend",
+        "config": {
+            "run_hour_utc": 5,
+            "summary_family": "pullback_in_trend",
+        },
+    },
+    {
         "id": "breakout_momentum_daily",
         "repo": "crypto-bot",
         "strategy_id": "breakout_momentum",

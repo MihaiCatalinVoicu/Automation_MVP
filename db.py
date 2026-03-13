@@ -648,6 +648,11 @@ def init_db() -> None:
                 decision_reason TEXT NOT NULL,
                 confidence REAL,
                 verdict_score REAL,
+                experiment_score REAL,
+                near_miss_score REAL,
+                validation_level TEXT,
+                batch_size INTEGER,
+                config_fingerprint TEXT,
                 metrics_snapshot_json TEXT NOT NULL,
                 gate_results_json TEXT NOT NULL,
                 artifacts_root TEXT,
@@ -694,6 +699,45 @@ def init_db() -> None:
                 FOREIGN KEY(manifest_id) REFERENCES experiment_manifests(manifest_id)
             );
 
+            CREATE TABLE IF NOT EXISTS family_budget_state (
+                family_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'active',
+                priority INTEGER NOT NULL DEFAULT 50,
+                maturity TEXT NOT NULL DEFAULT 'experimental',
+                family_score REAL,
+                near_miss_rate REAL,
+                mutation_improvement_rate REAL,
+                robustness_survival_rate REAL,
+                dead_manifest_penalty REAL,
+                active_cases_count INTEGER NOT NULL DEFAULT 0,
+                total_cases_count INTEGER NOT NULL DEFAULT 0,
+                ready_manifest_count INTEGER NOT NULL DEFAULT 0,
+                running_manifest_count INTEGER NOT NULL DEFAULT 0,
+                completed_manifest_count INTEGER NOT NULL DEFAULT 0,
+                dead_manifest_count INTEGER NOT NULL DEFAULT 0,
+                latest_near_miss_score REAL,
+                recommended_action TEXT,
+                budget_state_json TEXT NOT NULL DEFAULT '{}',
+                motifs_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS family_registry (
+                family_id TEXT PRIMARY KEY,
+                generator_type TEXT NOT NULL,
+                strategy_id TEXT NOT NULL,
+                setup_name TEXT,
+                data_requirements_json TEXT NOT NULL DEFAULT '[]',
+                allowed_validation_levels_json TEXT NOT NULL DEFAULT '[]',
+                batch_defaults_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'experimental',
+                priority INTEGER NOT NULL DEFAULT 50,
+                maturity TEXT NOT NULL DEFAULT 'experimental',
+                repo TEXT NOT NULL DEFAULT 'crypto-bot',
+                notes TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_search_cases_status ON search_cases(status);
             CREATE INDEX IF NOT EXISTS idx_search_cases_family ON search_cases(family);
             CREATE INDEX IF NOT EXISTS idx_search_cases_strategy_id ON search_cases(strategy_id);
@@ -705,11 +749,15 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_case_id ON edge_verdicts(case_id);
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_manifest_id ON edge_verdicts(manifest_id);
             CREATE INDEX IF NOT EXISTS idx_edge_verdicts_decision ON edge_verdicts(decision);
+            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_near_miss_score ON edge_verdicts(near_miss_score);
+            CREATE INDEX IF NOT EXISTS idx_edge_verdicts_validation_level ON edge_verdicts(validation_level);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_edge_verdicts_one_final_per_case
             ON edge_verdicts(case_id)
             WHERE status='final';
             CREATE INDEX IF NOT EXISTS idx_case_events_case_id ON case_events(case_id);
             CREATE INDEX IF NOT EXISTS idx_telegram_decisions_case_id ON telegram_decisions(case_id);
+            CREATE INDEX IF NOT EXISTS idx_family_budget_state_status ON family_budget_state(status, family_score);
+            CREATE INDEX IF NOT EXISTS idx_family_registry_status ON family_registry(status, priority);
 
             -- Convenience views for edge search queries
 
@@ -749,6 +797,11 @@ def init_db() -> None:
         _ensure_column(conn, "experiment_manifests", "last_run_id", "TEXT")
         _ensure_column(conn, "experiment_manifests", "attempt_count", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "experiment_manifests", "last_error", "TEXT")
+        _ensure_column(conn, "edge_verdicts", "experiment_score", "REAL")
+        _ensure_column(conn, "edge_verdicts", "near_miss_score", "REAL")
+        _ensure_column(conn, "edge_verdicts", "validation_level", "TEXT")
+        _ensure_column(conn, "edge_verdicts", "batch_size", "INTEGER")
+        _ensure_column(conn, "edge_verdicts", "config_fingerprint", "TEXT")
 
 
 def insert_run(
@@ -1692,6 +1745,8 @@ def list_experiment_manifests(
     case_id: str | None = None,
     status: str | None = None,
     adapter_type: str | None = None,
+    execution_status: str | None = None,
+    derived_from_verdict_id: str | None = None,
 ) -> list[dict]:
     where: list[str] = []
     params: list[Any] = []
@@ -1704,6 +1759,12 @@ def list_experiment_manifests(
     if adapter_type:
         where.append("adapter_type=?")
         params.append(adapter_type)
+    if execution_status:
+        where.append("execution_status=?")
+        params.append(execution_status)
+    if derived_from_verdict_id:
+        where.append("derived_from_verdict_id=?")
+        params.append(derived_from_verdict_id)
     sql = "SELECT * FROM experiment_manifests"
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -1827,12 +1888,133 @@ def list_ready_manifests(limit: int = 50) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def count_manifests_created_since(since_ts: str, *, case_id: str | None = None) -> int:
+def count_manifests_by_execution_status(
+    execution_statuses: list[str] | tuple[str, ...],
+    *,
+    family: str | None = None,
+    validation_level: str | None = None,
+    derived_from_verdict_id: str | None = None,
+) -> int:
+    statuses = [str(item).strip() for item in execution_statuses if str(item).strip()]
+    if not statuses:
+        return 0
+    placeholders = ", ".join("?" for _ in statuses)
+    sql = f"SELECT COUNT(1) AS n FROM experiment_manifests WHERE execution_status IN ({placeholders})"
+    params: list[Any] = list(statuses)
+    if family:
+        sql += " AND json_extract(strategy_identity_json, '$.family')=?"
+        params.append(family)
+    if validation_level:
+        sql += " AND COALESCE(json_extract(execution_spec_json, '$.validation_level'), 'cheap')=?"
+        params.append(validation_level)
+    if derived_from_verdict_id:
+        sql += " AND derived_from_verdict_id=?"
+        params.append(derived_from_verdict_id)
+    with get_conn() as conn:
+        row = conn.execute(sql, params).fetchone()
+        return int(row["n"] if row else 0)
+
+
+def count_pending_manifests(
+    *,
+    family: str | None = None,
+    validation_level: str | None = None,
+    derived_from_verdict_id: str | None = None,
+) -> int:
+    return count_manifests_by_execution_status(
+        ("ready", "claimed", "running"),
+        family=family,
+        validation_level=validation_level,
+        derived_from_verdict_id=derived_from_verdict_id,
+    )
+
+
+def count_active_manifest_workers(*, stale_after_minutes: int = 180) -> int:
+    cutoff_ts = datetime.now(timezone.utc).timestamp() - max(1, int(stale_after_minutes)) * 60
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT claimed_by, claimed_at
+            FROM experiment_manifests
+            WHERE execution_status IN ('claimed', 'running')
+              AND claimed_by IS NOT NULL
+              AND claimed_by != ''
+            """
+        ).fetchall()
+    active: set[str] = set()
+    for row in rows:
+        claimed_by = str(row["claimed_by"] or "").strip()
+        claimed_at = str(row["claimed_at"] or "").strip()
+        if not claimed_by:
+            continue
+        if not claimed_at:
+            active.add(claimed_by)
+            continue
+        try:
+            ts = datetime.fromisoformat(claimed_at.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            active.add(claimed_by)
+            continue
+        if ts >= cutoff_ts:
+            active.add(claimed_by)
+    return len(active)
+
+
+def manifest_config_fingerprint_exists(
+    config_fingerprint: str,
+    *,
+    include_completed_verdicts: bool = True,
+    include_pending_manifests: bool = True,
+) -> bool:
+    fp = str(config_fingerprint or "").strip()
+    if not fp:
+        return False
+    with get_conn() as conn:
+        if include_completed_verdicts:
+            verdict_row = conn.execute(
+                """
+                SELECT verdict_id
+                FROM edge_verdicts
+                WHERE config_fingerprint=?
+                LIMIT 1
+                """,
+                (fp,),
+            ).fetchone()
+            if verdict_row:
+                return True
+        if include_pending_manifests:
+            manifest_row = conn.execute(
+                """
+                SELECT manifest_id
+                FROM experiment_manifests
+                WHERE json_extract(planner_hints_json, '$.config_fingerprint')=?
+                LIMIT 1
+                """,
+                (fp,),
+            ).fetchone()
+            if manifest_row:
+                return True
+    return False
+
+
+def count_manifests_created_since(
+    since_ts: str,
+    *,
+    case_id: str | None = None,
+    family: str | None = None,
+    validation_level: str | None = None,
+) -> int:
     sql = "SELECT COUNT(1) AS n FROM experiment_manifests WHERE created_at>=?"
     params: list[Any] = [since_ts]
     if case_id:
         sql += " AND case_id=?"
         params.append(case_id)
+    if family:
+        sql += " AND json_extract(strategy_identity_json, '$.family')=?"
+        params.append(family)
+    if validation_level:
+        sql += " AND COALESCE(json_extract(execution_spec_json, '$.validation_level'), 'cheap')=?"
+        params.append(validation_level)
     with get_conn() as conn:
         row = conn.execute(sql, params).fetchone()
         return int(row["n"] if row else 0)
@@ -1852,6 +2034,11 @@ def create_edge_verdict(
     run_id: str | None = None,
     confidence: float | None = None,
     verdict_score: float | None = None,
+    experiment_score: float | None = None,
+    near_miss_score: float | None = None,
+    validation_level: str | None = None,
+    batch_size: int | None = None,
+    config_fingerprint: str | None = None,
     artifacts_root: str | None = None,
     dominant_failure_mode: str | None = None,
     policy_selected: str | None = None,
@@ -1885,17 +2072,19 @@ def create_edge_verdict(
             INSERT INTO edge_verdicts (
                 verdict_id, case_id, manifest_id, run_id,
                 verdict_type, status, decision, decision_reason, confidence, verdict_score,
+                experiment_score, near_miss_score, validation_level, batch_size, config_fingerprint,
                 metrics_snapshot_json, gate_results_json, artifacts_root,
                 dominant_failure_mode, policy_selected,
                 mutation_recommendation_json, promotion_state_json,
                 next_action, next_action_payload_json,
                 postmortem_summary_json,
                 review_mode, reviewed_by, approved_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 verdict_id, case_id, manifest_id, run_id,
                 verdict_type, status, decision, decision_reason, confidence, verdict_score,
+                experiment_score, near_miss_score, validation_level, batch_size, config_fingerprint,
                 _json_col(metrics_snapshot),
                 _json_col(gate_results),
                 artifacts_root,
@@ -1956,6 +2145,171 @@ def list_edge_verdicts(
     sql += " ORDER BY created_at DESC"
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def get_family_budget_state(family_id: str) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM family_budget_state WHERE family_id=?",
+            (family_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_family_budget_states() -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM family_budget_state ORDER BY COALESCE(family_score, -1.0) DESC, family_id ASC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_family_budget_state(
+    *,
+    family_id: str,
+    status: str,
+    priority: int,
+    maturity: str,
+    family_score: float | None,
+    near_miss_rate: float | None,
+    mutation_improvement_rate: float | None,
+    robustness_survival_rate: float | None,
+    dead_manifest_penalty: float | None,
+    active_cases_count: int,
+    total_cases_count: int,
+    ready_manifest_count: int,
+    running_manifest_count: int,
+    completed_manifest_count: int,
+    dead_manifest_count: int,
+    latest_near_miss_score: float | None,
+    recommended_action: str | None,
+    budget_state: dict[str, Any] | None = None,
+    motifs: dict[str, Any] | None = None,
+) -> None:
+    now = utc_now()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO family_budget_state (
+                family_id, status, priority, maturity, family_score,
+                near_miss_rate, mutation_improvement_rate, robustness_survival_rate, dead_manifest_penalty,
+                active_cases_count, total_cases_count,
+                ready_manifest_count, running_manifest_count, completed_manifest_count, dead_manifest_count,
+                latest_near_miss_score, recommended_action,
+                budget_state_json, motifs_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(family_id) DO UPDATE SET
+                status=excluded.status,
+                priority=excluded.priority,
+                maturity=excluded.maturity,
+                family_score=excluded.family_score,
+                near_miss_rate=excluded.near_miss_rate,
+                mutation_improvement_rate=excluded.mutation_improvement_rate,
+                robustness_survival_rate=excluded.robustness_survival_rate,
+                dead_manifest_penalty=excluded.dead_manifest_penalty,
+                active_cases_count=excluded.active_cases_count,
+                total_cases_count=excluded.total_cases_count,
+                ready_manifest_count=excluded.ready_manifest_count,
+                running_manifest_count=excluded.running_manifest_count,
+                completed_manifest_count=excluded.completed_manifest_count,
+                dead_manifest_count=excluded.dead_manifest_count,
+                latest_near_miss_score=excluded.latest_near_miss_score,
+                recommended_action=excluded.recommended_action,
+                budget_state_json=excluded.budget_state_json,
+                motifs_json=excluded.motifs_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                family_id,
+                status,
+                priority,
+                maturity,
+                family_score,
+                near_miss_rate,
+                mutation_improvement_rate,
+                robustness_survival_rate,
+                dead_manifest_penalty,
+                active_cases_count,
+                total_cases_count,
+                ready_manifest_count,
+                running_manifest_count,
+                completed_manifest_count,
+                dead_manifest_count,
+                latest_near_miss_score,
+                recommended_action,
+                _json_col(budget_state or {}),
+                _json_col(motifs or {}),
+                now,
+            ),
+        )
+
+
+def upsert_family_registry_entry(
+    *,
+    family_id: str,
+    generator_type: str,
+    strategy_id: str,
+    setup_name: str | None,
+    data_requirements: list[str] | None,
+    allowed_validation_levels: list[str] | None,
+    batch_defaults: dict[str, Any] | None,
+    status: str,
+    priority: int,
+    maturity: str,
+    repo: str = "crypto-bot",
+    notes: str = "",
+) -> None:
+    now = utc_now()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO family_registry (
+                family_id, generator_type, strategy_id, setup_name,
+                data_requirements_json, allowed_validation_levels_json, batch_defaults_json,
+                status, priority, maturity, repo, notes, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(family_id) DO UPDATE SET
+                generator_type=excluded.generator_type,
+                strategy_id=excluded.strategy_id,
+                setup_name=excluded.setup_name,
+                data_requirements_json=excluded.data_requirements_json,
+                allowed_validation_levels_json=excluded.allowed_validation_levels_json,
+                batch_defaults_json=excluded.batch_defaults_json,
+                status=excluded.status,
+                priority=excluded.priority,
+                maturity=excluded.maturity,
+                repo=excluded.repo,
+                notes=excluded.notes,
+                updated_at=excluded.updated_at
+            """,
+            (
+                family_id,
+                generator_type,
+                strategy_id,
+                setup_name,
+                _json_col(data_requirements or []),
+                _json_col(allowed_validation_levels or []),
+                _json_col(batch_defaults or {}),
+                status,
+                priority,
+                maturity,
+                repo,
+                notes,
+                now,
+            ),
+        )
+
+
+def list_family_registry(status: str | None = None) -> list[dict]:
+    sql = "SELECT * FROM family_registry"
+    params: list[Any] = []
+    if status:
+        sql += " WHERE status=?"
+        params.append(status)
+    sql += " ORDER BY priority DESC, family_id ASC"
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
 
 def create_case_event(

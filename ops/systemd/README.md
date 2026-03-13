@@ -5,6 +5,10 @@ Template units for the minimal lifecycle automation layer:
 - `runtime-events-import.service` / `.timer`
 - `lifecycle-reconcile.service` / `.timer`
 - `daily-lifecycle-report.service` / `.timer`
+- `edge-search-manifest-worker.service`
+- `edge-search-mutation-cycle.service` / `.timer`
+- `edge-search-meta-report.service` / `.timer`
+- `edge-search-retention.service` / `.timer`
 
 ## Before enabling
 

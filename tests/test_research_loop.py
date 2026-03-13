@@ -86,6 +86,36 @@ def test_mutate_config_tighten_risk() -> None:
     assert variants[0]["variant_name"].endswith("_g1")
 
 
+def test_mutate_config_trend_vol_expansion_generates_unique_variants() -> None:
+    cohort = {
+        "cohort_name": "trend_vol_loop",
+        "dataset": {"fwd_hours": 16, "hard_stop_pct": -0.03},
+        "families": {
+            "trend_volatility_expansion": {
+                "variants": [
+                    {
+                        "variant_name": "tve_base",
+                        "compression_window": 20,
+                        "compression_atr_ratio_max": 0.72,
+                        "breakout_lookback": 18,
+                        "breakout_vol_mult": 1.15,
+                        "volume_zscore_min": 1.5,
+                        "atr_stop_mult": 1.8,
+                        "atr_trail_mult": 2.0,
+                    }
+                ]
+            }
+        },
+    }
+    decision = LoopDecision("MUTATE", "edge_near_miss_refine", "tve_base", "local_refine", "none")
+    out, meta = mutate_config(cohort, "trend_volatility_expansion", decision, variants_per_generation=4)
+    assert meta["policy"] == "EDGE_UP"
+    variants = out["families"]["trend_volatility_expansion"]["variants"]
+    assert len(variants) == 4
+    signatures = {str({k: v for k, v in item.items() if k != "variant_name"}) for item in variants}
+    assert len(signatures) == 4
+
+
 def test_default_loop_root_reuses_existing_loop(tmp_path: Path) -> None:
     loop_dir = tmp_path / "breakout_momentum_20260310T220943Z"
     loop_dir.mkdir(parents=True)
@@ -166,6 +196,12 @@ def test_no_progress_churn_details_skips_when_progress_exists() -> None:
 def test_config_fingerprint_is_stable() -> None:
     a = {"x": 1, "y": {"b": 2, "a": 3}}
     b = {"y": {"a": 3, "b": 2}, "x": 1}
+    assert _config_fingerprint(a) == _config_fingerprint(b)
+
+
+def test_config_fingerprint_normalizes_numeric_equivalents() -> None:
+    a = {"atr_stop": 2, "nested": {"breakout_window": 20, "weights": [1, 2.0, 2.5000001]}}
+    b = {"atr_stop": 2.0, "nested": {"breakout_window": 20.0, "weights": [1.0, 2, 2.5]}}
     assert _config_fingerprint(a) == _config_fingerprint(b)
 
 

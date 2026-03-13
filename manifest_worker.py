@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import socket
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +12,8 @@ from db import (
     claim_manifest,
     create_case_event,
     get_experiment_manifest,
+    init_db,
+    list_ready_manifests,
     set_manifest_failed_with_retry_policy,
     set_manifest_execution_state,
 )
@@ -17,6 +22,16 @@ from research_guardrails import evaluate_manifest_guardrails
 
 AUTOMATION_ROOT = Path(__file__).resolve().parent
 MANIFEST_MAX_RETRIES = max(1, int(os.getenv("MANIFEST_MAX_RETRIES", "3")))
+MANIFEST_WORKER_POLL_INTERVAL_SECONDS = max(1, int(os.getenv("MANIFEST_WORKER_POLL_INTERVAL_SECONDS", "5")))
+MANIFEST_WORKER_HEARTBEAT_SECONDS = max(0, int(os.getenv("MANIFEST_WORKER_HEARTBEAT_SECONDS", "60")))
+
+
+def _ts() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _log(message: str) -> None:
+    print(f"[{_ts()}] INFO {message}", flush=True)
 
 
 def _run_adapter(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -105,4 +120,28 @@ def process_one_manifest(worker_id: str) -> bool:
         payload=verdict,
     )
     return True
+
+
+def main() -> None:
+    init_db()
+    worker_id = f"manifest-worker-{socket.gethostname()}-{os.getpid()}"
+    _log(
+        f"manifest worker started worker_id={worker_id} "
+        f"poll={MANIFEST_WORKER_POLL_INTERVAL_SECONDS}s "
+        f"heartbeat={MANIFEST_WORKER_HEARTBEAT_SECONDS}s"
+    )
+    last_heartbeat_ts = 0.0
+    while True:
+        processed = process_one_manifest(worker_id)
+        now_ts = time.time()
+        if not processed:
+            if MANIFEST_WORKER_HEARTBEAT_SECONDS > 0 and (now_ts - last_heartbeat_ts) >= MANIFEST_WORKER_HEARTBEAT_SECONDS:
+                ready = len(list_ready_manifests(limit=100))
+                _log(f"idle heartbeat ready_manifests={ready}")
+                last_heartbeat_ts = now_ts
+            time.sleep(MANIFEST_WORKER_POLL_INTERVAL_SECONDS)
+
+
+if __name__ == "__main__":
+    main()
 

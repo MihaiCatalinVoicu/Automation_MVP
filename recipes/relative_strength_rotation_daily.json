@@ -1,0 +1,28 @@
+{
+  "name": "relative_strength_rotation_daily",
+  "description": "Run relative strength rotation research family and evaluate shadow readiness.",
+  "cwd": "{{cwd}}",
+  "commands": [
+    {
+      "id": "relative_strength_rotation_research",
+      "cmd": "\"{{python_bin}}\" scripts/run_cohort_research.py --family relative_strength_rotation --cohort-config \"{{cohort_config}}\" --output-dir \"{{battery_output_dir}}\" --run-date \"{{run_date}}\""
+    }
+  ],
+  "extractors": [
+    {"source": "relative_strength_rotation_research", "metric": "candidate_count", "json_file": "{{battery_output_dir}}/family_summary.json", "json_path": "candidate_count"},
+    {"source": "relative_strength_rotation_research", "metric": "validation_ready", "json_file": "{{battery_output_dir}}/family_summary.json", "json_path": "validation_ready"},
+    {"source": "relative_strength_rotation_research", "metric": "sanity_pass", "json_file": "{{battery_output_dir}}/family_summary.json", "json_path": "sanity_pass"},
+    {"source": "relative_strength_rotation_research", "metric": "window_passes", "json_file": "{{battery_output_dir}}/robustness_summary.json", "json_path": "summary_metrics.window_passes"},
+    {"source": "relative_strength_rotation_research", "metric": "average_profit_factor", "json_file": "{{battery_output_dir}}/robustness_summary.json", "json_path": "summary_metrics.average_profit_factor"}
+  ],
+  "rules": [
+    {"metric": "candidate_count", "op": ">=", "value": 1, "label": "At least one surviving candidate"},
+    {"metric": "sanity_pass", "op": ">=", "value": 1, "label": "Sanity checks passed"},
+    {"metric": "validation_ready", "op": ">=", "value": 1, "label": "Validation artifacts created"},
+    {"metric": "window_passes", "op": ">=", "value": 1, "label": "At least one robust window", "warn_only": true},
+    {"metric": "average_profit_factor", "op": ">=", "value": 1.2, "label": "Average PF acceptable", "warn_only": true}
+  ],
+  "verdict_logic": {
+    "promote_if_all_pass": true
+  }
+}
