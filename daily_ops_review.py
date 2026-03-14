@@ -32,6 +32,46 @@ def _is_recent(ts_raw: str | None, *, max_age_hours: int) -> bool | None:
     return ts >= datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
 
+def _parse_ts(ts_raw: str | None) -> datetime | None:
+    if not ts_raw:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
+def _scan_recency_check(runtime_truth: dict[str, Any]) -> tuple[str, str]:
+    """
+    scan cadence-aware recency:
+    - pass: <= 5h
+    - warn: > 5h and <= 6h
+    - fail: > 6h or missing timestamp
+    """
+    latest_scan = runtime_truth.get("latest_scan_summary") or {}
+    metadata = latest_scan.get("metadata") or {}
+    ts_raw = (
+        latest_scan.get("ts")
+        or latest_scan.get("ts_utc")
+        or latest_scan.get("created_at")
+        or metadata.get("ts")
+        or metadata.get("ts_utc")
+    )
+    ts = _parse_ts(ts_raw)
+    if ts is None:
+        return "fail", "scan timestamp missing"
+    age_h = (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
+    detail = f"scan_age={age_h:.2f}h ts={ts.isoformat()}"
+    if age_h <= 5.0:
+        return "pass", detail
+    if age_h <= 6.0:
+        return "warn", detail
+    return "fail", detail
+
+
 def build_daily_ops_review(
     *,
     automation_report_path: str,
@@ -50,6 +90,7 @@ def build_daily_ops_review(
     live_edge = automation.get("live_edge_search") or {}
     trigger_items = (automation.get("trigger_board") or {}).get("items") or []
     generated_recent = _is_recent(automation.get("generated_at"), max_age_hours=24)
+    scan_recent_status, scan_recent_detail = _scan_recency_check(runtime_truth)
 
     checklist = [
         {
@@ -76,6 +117,11 @@ def build_daily_ops_review(
             "item": "crypto_heartbeat_recent",
             "status": "pass" if checks.get("heartbeat_recent") else "warn",
             "detail": checks.get("heartbeat_detail"),
+        },
+        {
+            "item": "crypto_scan_recent",
+            "status": scan_recent_status,
+            "detail": scan_recent_detail,
         },
         {
             "item": "btc_structural_baseline",

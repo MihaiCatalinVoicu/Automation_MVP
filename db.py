@@ -1733,6 +1733,26 @@ def update_search_case(case_id: str, *, force_transition: bool = False, **update
         conn.execute(f"UPDATE search_cases SET {', '.join(cols)} WHERE case_id=?", vals)
 
 
+def missing_required_execution_spec(
+    execution_spec: dict[str, Any],
+    required: tuple[str, ...] = ("family", "config_path", "recipe_path", "repo_root"),
+) -> list[str]:
+    return [k for k in required if not str((execution_spec or {}).get(k) or "").strip()]
+
+
+def ensure_required_execution_spec(
+    execution_spec: dict[str, Any],
+    *,
+    context: str = "research_loop",
+    required: tuple[str, ...] = ("family", "config_path", "recipe_path", "repo_root"),
+) -> None:
+    missing = missing_required_execution_spec(execution_spec, required=required)
+    if missing:
+        raise ValueError(
+            f"Missing required execution_spec for {context}: " + "/".join(missing)
+        )
+
+
 def create_experiment_manifest(
     *,
     manifest_id: str,
@@ -1780,12 +1800,7 @@ def create_experiment_manifest(
     )
     # endregion
     if adapter_type == "research_loop":
-        required_execution_spec = ("family", "config_path", "recipe_path", "repo_root")
-        missing = [k for k in required_execution_spec if not str(execution_spec.get(k) or "").strip()]
-        if missing:
-            raise ValueError(
-                "Missing required execution_spec for research_loop: " + "/".join(missing)
-            )
+        ensure_required_execution_spec(execution_spec, context="research_loop")
     case = get_search_case(case_id)
     if not case:
         raise KeyError(f"Search case not found: {case_id}")

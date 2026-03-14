@@ -11,6 +11,7 @@ from typing import Any
 from db import (
     create_case_event,
     create_experiment_manifest,
+    ensure_required_execution_spec,
     get_conn,
     get_search_case,
     init_db,
@@ -308,6 +309,10 @@ def run_mutation_cycle(*, since_hours: int, limit: int, dry_run: bool = False) -
             )
             continue
         child = _build_child_manifest_payload(candidate, config_path=config_path, config_fingerprint=config_fingerprint)
+        ensure_required_execution_spec(
+            child.get("execution_spec") or {},
+            context="mutation_cycle",
+        )
         allowed, reason = evaluate_manifest_plan_guardrails(
             case=case,
             family=family,

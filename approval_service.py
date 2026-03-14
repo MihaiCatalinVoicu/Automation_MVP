@@ -11,6 +11,7 @@ from db import (
     create_case_event,
     create_experiment_manifest,
     create_telegram_decision,
+    ensure_required_execution_spec,
     get_search_case,
     get_telegram_decision,
     get_experiment_manifest,
@@ -404,6 +405,7 @@ def apply_research_decision(
             parent_execution_spec["policy_selected"] = latest_verdict["policy_selected"]
         if mutation_recommendation:
             parent_execution_spec["mutation_intent"] = mutation_recommendation.get("mutation_class")
+        ensure_required_execution_spec(parent_execution_spec, context=f"approval:{action_up.lower()}")
         # region agent log
         _debug_log(
             "H1_parent_execution_spec_empty",
