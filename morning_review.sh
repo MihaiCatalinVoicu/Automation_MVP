@@ -4,8 +4,13 @@ set -Eeuo pipefail
 ROOT="/root/automation-mvp"
 VENV="$ROOT/.venv"
 ENV_FILE="$ROOT/.env"
-CRYPTO_BOT_ROOT="${CRYPTO_BOT_ROOT:-/root/crypto-bot-git}"
+CRYPTO_BOT_ROOT="${CRYPTO_BOT_ROOT:-/opt/crypto-bot/current}"
 STOCKS_BOT_ROOT="${STOCKS_BOT_ROOT:-/root/stocks-bot-git}"
+
+# Server-specific repo paths (repos.json has Windows paths)
+if [[ -f "$ROOT/repos.server.json" ]]; then
+  export REPO_CONFIG_PATH="$ROOT/repos.server.json"
+fi
 
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090

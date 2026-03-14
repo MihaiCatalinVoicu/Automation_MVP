@@ -8,3 +8,6 @@ __pycache__/
 # Local DB/artifacts
 data/
 docs/.approval_*
+
+# Server-specific (paths differ from local repos.json)
+repos.server.json

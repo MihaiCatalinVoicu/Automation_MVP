@@ -1,0 +1,18 @@
+{
+  "automation-mvp": {
+    "path": "/root/automation-mvp",
+    "default_branch": "feature/validation-battery",
+    "allow_create_branch": false,
+    "skip_git_prep": true
+  },
+  "stocks-bot": {
+    "path": "/root/stocks-bot-git",
+    "default_branch": "fix/paper-eval-accounting",
+    "allow_create_branch": false
+  },
+  "crypto-bot": {
+    "path": "/opt/crypto-bot/current",
+    "default_branch": "lang-ml",
+    "allow_create_branch": false
+  }
+}

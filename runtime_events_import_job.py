@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,8 @@ ROOT = Path(__file__).resolve().parent
 
 
 def _default_sources(repos: list[str] | None = None) -> list[dict[str, str]]:
-    registry = RepoRegistry(str(ROOT / "repos.json"))
+    config_path = os.environ.get("REPO_CONFIG_PATH", str(ROOT / "repos.json"))
+    registry = RepoRegistry(config_path)
     out: list[dict[str, str]] = []
     wanted = repos or ["crypto-bot", "stocks-bot"]
     for repo_name in wanted:

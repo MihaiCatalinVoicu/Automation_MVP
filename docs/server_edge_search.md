@@ -76,6 +76,16 @@ Important defaults:
 - `EDGE_SEARCH_SHADOW_ONLY_DAYS=30`
 - `EDGE_SEARCH_PROMOTION_MIN_DETAILS_CHARS=24`
 
+## Repo Paths (repos.server.json)
+
+`runtime_events_import_job.py` and `morning_review.sh` need server paths. Create:
+
+```bash
+cp repos.server.json.example repos.server.json
+```
+
+Edit `repos.server.json` if your paths differ. Crypto-bot must point to `/opt/crypto-bot/current` (the live deployment).
+
 ## Path Setup
 
 Service units use `/srv/automation-mvp`. If the project lives elsewhere (e.g. `~/automation-mvp`), create a symlink:
