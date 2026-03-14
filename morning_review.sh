@@ -4,6 +4,8 @@ set -Eeuo pipefail
 ROOT="/root/automation-mvp"
 VENV="$ROOT/.venv"
 ENV_FILE="$ROOT/.env"
+CRYPTO_BOT_ROOT="${CRYPTO_BOT_ROOT:-/root/crypto-bot-git}"
+STOCKS_BOT_ROOT="${STOCKS_BOT_ROOT:-/root/stocks-bot-git}"
 
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -67,6 +69,8 @@ section "Refreshing lifecycle artifacts"
 run_python_job "runtime_events_import_job.py --repos crypto-bot"
 run_python_job "lifecycle_reconcile_job.py"
 run_python_job "daily_lifecycle_report.py"
+run_python_job "daily_ops_review.py --automation-report data/reports/meta_search_report_latest.json --crypto-runtime-truth $CRYPTO_BOT_ROOT/data/reports/runtime_truth_report_latest.json --crypto-baseline $CRYPTO_BOT_ROOT/data/reports/btc_structural_baseline_latest.json --crypto-cost-gate $CRYPTO_BOT_ROOT/data/reports/cost_sensitivity_latest.json --stocks-verdict $STOCKS_BOT_ROOT/data/reports/winner_verdict_scorecard_latest.json"
+run_python_job "weekly_evidence_pack.py --automation-report data/reports/meta_search_report_latest.json --crypto-runtime-truth $CRYPTO_BOT_ROOT/data/reports/runtime_truth_report_latest.json --crypto-baseline $CRYPTO_BOT_ROOT/data/reports/btc_structural_baseline_latest.json --crypto-cost-gate $CRYPTO_BOT_ROOT/data/reports/cost_sensitivity_latest.json --stocks-verdict $STOCKS_BOT_ROOT/data/reports/winner_verdict_scorecard_latest.json"
 
 section "Daily lifecycle report"
 REPORT_MD="$ROOT/data/reports/daily_lifecycle_report_latest.md"
@@ -74,6 +78,14 @@ if [[ -f "$REPORT_MD" ]]; then
   cat "$REPORT_MD"
 else
   echo "[$(ts)] No daily report found at: $REPORT_MD"
+fi
+
+section "Daily ops review"
+OPS_MD="$ROOT/data/reports/daily_ops_review_latest.md"
+if [[ -f "$OPS_MD" ]]; then
+  cat "$OPS_MD"
+else
+  echo "[$(ts)] No ops review found at: $OPS_MD"
 fi
 
 section "1) PROMOTE_TO_PAPER candidates"

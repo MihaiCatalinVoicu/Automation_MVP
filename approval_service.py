@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from db import (
@@ -31,6 +33,18 @@ from research_loop import _config_fingerprint
 from telegram_bot import send_approval_message, send_pre_execution_message
 
 DEBUG_LOG_PATH = Path("debug-0fff85.log")
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = str(os.getenv(name, "1" if default else "0")).strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
@@ -71,6 +85,41 @@ def _prefer_next_batch_config_path(current_path: str, artifacts_root: str | None
         except Exception:
             return str(current.resolve()), None
     return raw_current, None
+
+
+def _parse_case_opened_at(case: dict) -> datetime | None:
+    raw = str(case.get("opened_at") or "").strip()
+    if not raw:
+        return None
+    try:
+        opened_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if opened_at.tzinfo is None:
+        opened_at = opened_at.replace(tzinfo=timezone.utc)
+    return opened_at
+
+
+def _promotion_guard(case: dict, *, source: str, details: str) -> str | None:
+    if not _env_bool("EDGE_SEARCH_REQUIRE_MANUAL_PROMOTION", True):
+        return None
+    if str(source or "").strip().lower() != "manual":
+        return "promotion_requires_manual_source"
+    min_details = _env_int("EDGE_SEARCH_PROMOTION_MIN_DETAILS_CHARS", 24)
+    if len(str(details or "").strip()) < min_details:
+        return f"promotion_requires_written_rationale:{min_details}"
+    shadow_days = _env_int("EDGE_SEARCH_SHADOW_ONLY_DAYS", 30)
+    if shadow_days <= 0:
+        return None
+    opened_at = _parse_case_opened_at(case)
+    if opened_at is None:
+        return "promotion_shadow_window_unknown_opened_at"
+    until = opened_at + timedelta(days=shadow_days)
+    remaining = until - datetime.now(timezone.utc)
+    if remaining.total_seconds() > 0:
+        remaining_days = max(1, int(remaining.total_seconds() // 86400))
+        return f"promotion_shadow_window_active:{remaining_days}d_remaining"
+    return None
 
 
 def create_approval(run_id: str, summary: dict) -> str:
@@ -438,6 +487,29 @@ def apply_research_decision(
 
     if action_up in {"PROMOTE_TO_PAPER", "HOLD_FOR_MORE_DATA", "KILL_CASE", "ASK_PREMIUM_REVIEW"}:
         if action_up == "PROMOTE_TO_PAPER":
+            guard_reason = _promotion_guard(case, source=source, details=details)
+            if guard_reason:
+                create_case_event(
+                    case_id=case_id,
+                    manifest_id=target_manifest["manifest_id"],
+                    verdict_id=latest_verdict_id,
+                    event_type="promotion_blocked",
+                    payload={
+                        "reason": guard_reason,
+                        "actor": actor,
+                        "source": source,
+                        "details": details,
+                        "decision_key": canonical_decision_key,
+                    },
+                )
+                return {
+                    "ok": False,
+                    "case_id": case_id,
+                    "action": action_up,
+                    "status": "PROMOTION_BLOCKED",
+                    "reason": guard_reason,
+                    "decision_key": canonical_decision_key,
+                }
             if not latest_verdict_id:
                 raise ValueError("Cannot promote without current final verdict")
             latest_verdict = get_edge_verdict(latest_verdict_id)

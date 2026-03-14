@@ -1343,6 +1343,15 @@ def get_last_maintenance_job_run(job_name: str) -> Optional[dict]:
         return dict(row) if row else None
 
 
+def list_maintenance_job_runs(job_name: str, *, limit: int = 10) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM maintenance_job_runs WHERE job_name=? ORDER BY id DESC LIMIT ?",
+            (job_name, max(1, int(limit))),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_edge_search_runtime_state(state_key: str = "global") -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute(
@@ -1422,6 +1431,15 @@ def get_last_edge_search_trigger_review(trigger_name: str) -> Optional[dict]:
             (trigger_name,),
         ).fetchone()
         return dict(row) if row else None
+
+
+def list_edge_search_trigger_reviews(*, limit: int = 25) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM edge_search_trigger_reviews ORDER BY id DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def list_events(run_id: str) -> list[dict]:

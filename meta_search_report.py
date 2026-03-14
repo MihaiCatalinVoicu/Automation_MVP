@@ -10,6 +10,8 @@ from typing import Any
 
 from db import (
     get_last_maintenance_job_run,
+    list_edge_search_trigger_reviews,
+    list_maintenance_job_runs,
     get_conn,
     init_db,
     record_maintenance_job_run,
@@ -113,6 +115,120 @@ def _collect_motifs(verdict_rows: list[dict[str, Any]]) -> dict[str, int]:
         if regime_failure:
             counts[regime_failure] += 1
     return dict(counts)
+
+
+def _job_summary(row: dict[str, Any] | None) -> dict[str, Any]:
+    if not row:
+        return {}
+    return _load_json(row.get("summary_json"))
+
+
+def _meta_rate(summary: dict[str, Any]) -> float:
+    live = summary.get("live_edge_search") or {}
+    metrics = live.get("metrics") or {}
+    evaluated = _safe_int(metrics.get("evaluated_total"))
+    near_miss = _safe_int(metrics.get("near_miss_total"))
+    if evaluated > 0:
+        return _safe_rate(near_miss, evaluated)
+    families = summary.get("family_ranking") or []
+    near_miss = sum(_safe_int(item.get("near_miss_count")) for item in families)
+    evaluated = sum(_safe_int((item.get("manifest_counts") or {}).get("completed")) for item in families)
+    return _safe_rate(near_miss, evaluated)
+
+
+def _trend_label(delta: float, *, tolerance: float = 0.01) -> str:
+    if delta > tolerance:
+        return "improving"
+    if delta < (-tolerance):
+        return "worsening"
+    return "flat"
+
+
+def _build_convergence_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    mutation_runs = list_maintenance_job_runs("mutation_cycle", limit=5)
+    meta_runs = list_maintenance_job_runs("meta_search_report", limit=5)
+    mutation_summaries = [_job_summary(row) for row in mutation_runs]
+    meta_summaries = [_job_summary(row) for row in meta_runs]
+    live_review = payload.get("live_edge_search") or {}
+    live_metrics = live_review.get("metrics") or {}
+
+    mutation_reject_ratios: list[float] = []
+    duplicate_skip_ratios: list[float] = []
+    proposal_yields: list[float] = []
+    clean_run_streak = 0
+    for summary in mutation_summaries:
+        candidate_count = _safe_int(summary.get("candidate_count"))
+        created_count = _safe_int(summary.get("created_count"))
+        skipped_rows = list(summary.get("skipped") or [])
+        mutation_reject_ratios.append(_safe_rate(len(skipped_rows), candidate_count))
+        duplicate_skip_ratios.append(
+            _safe_rate(
+                sum(1 for row in skipped_rows if str(row.get("reason") or "") == "config_fingerprint_exists"),
+                candidate_count,
+            )
+        )
+        proposal_yields.append(_safe_rate(created_count, candidate_count))
+        preflight = summary.get("live_edge_search") or {}
+        if not preflight.get("allowed", True) or list(preflight.get("reasons") or []):
+            break
+        clean_run_streak += 1
+
+    meta_rates = [_meta_rate(summary) for summary in meta_summaries if summary]
+    current_rate = meta_rates[0] if meta_rates else _safe_rate(
+        _safe_int(live_metrics.get("near_miss_total")),
+        _safe_int(live_metrics.get("evaluated_total")),
+    )
+    previous_rate = meta_rates[1] if len(meta_rates) > 1 else current_rate
+    rate_delta = round(current_rate - previous_rate, 4)
+    duplicate_ratio = _safe_float(live_metrics.get("duplicate_ratio"))
+    stable_candidate_count = _safe_int(live_metrics.get("stable_candidate_count"))
+    if clean_run_streak >= 3 and duplicate_ratio <= 0.20 and stable_candidate_count >= 1:
+        stability = "stable"
+    elif clean_run_streak >= 1 and duplicate_ratio <= 0.35:
+        stability = "forming"
+    else:
+        stability = "fragile"
+
+    return {
+        "current_candidate_quality_rate": round(current_rate, 4),
+        "previous_candidate_quality_rate": round(previous_rate, 4),
+        "candidate_quality_delta": rate_delta,
+        "candidate_quality_trend": _trend_label(rate_delta),
+        "avg_reject_ratio": round(sum(mutation_reject_ratios) / len(mutation_reject_ratios), 4)
+        if mutation_reject_ratios
+        else 0.0,
+        "avg_duplicate_skip_ratio": round(sum(duplicate_skip_ratios) / len(duplicate_skip_ratios), 4)
+        if duplicate_skip_ratios
+        else 0.0,
+        "avg_proposal_yield": round(sum(proposal_yields) / len(proposal_yields), 4) if proposal_yields else 0.0,
+        "clean_run_streak": clean_run_streak,
+        "stable_candidate_count": stable_candidate_count,
+        "duplicate_ratio": round(duplicate_ratio, 4),
+        "stability": stability,
+    }
+
+
+def _build_trigger_board(review: dict[str, Any]) -> dict[str, Any]:
+    latest_reviews: dict[str, dict[str, Any]] = {}
+    for row in list_edge_search_trigger_reviews(limit=25):
+        latest_reviews.setdefault(str(row.get("trigger_name") or ""), row)
+    items: list[dict[str, Any]] = []
+    for trigger_name, trigger_payload in sorted((review.get("triggers") or {}).items()):
+        latest = latest_reviews.get(trigger_name) or {}
+        items.append(
+            {
+                "trigger": trigger_name,
+                "status": str(trigger_payload.get("status") or "locked"),
+                "thresholds": trigger_payload.get("thresholds") or {},
+                "owner": "automation-mvp",
+                "last_reviewed_at": latest.get("created_at") or review.get("generated_at"),
+            }
+        )
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "owner": "automation-mvp",
+        "items": items,
+    }
 
 
 def _recommended_action(score: float) -> str:
@@ -301,6 +417,8 @@ def build_meta_payload(*, loops_root: Path, since_days: int = 30) -> dict[str, A
         "actions": actions,
     }
     payload["live_edge_search"] = persist_live_edge_search_review(payload)
+    payload["convergence_snapshot"] = _build_convergence_snapshot(payload)
+    payload["trigger_board"] = _build_trigger_board(payload["live_edge_search"])
     record_maintenance_job_run("meta_search_report", "ok", payload)
     return payload
 
@@ -334,6 +452,43 @@ def render_markdown(payload: dict[str, Any]) -> str:
             f"evaluated=`{metrics.get('evaluated_total', 0)}` near_miss=`{metrics.get('near_miss_total', 0)}` "
             f"duplicate_ratio=`{metrics.get('duplicate_ratio', 0)}`"
         )
+    convergence = payload.get("convergence_snapshot") or {}
+    if convergence:
+        lines.append(
+            f"- convergence quality=`{convergence.get('current_candidate_quality_rate', 0)}` "
+            f"delta=`{convergence.get('candidate_quality_delta', 0)}` "
+            f"reject_ratio=`{convergence.get('avg_reject_ratio', 0)}` "
+            f"stability=`{convergence.get('stability', 'unknown')}`"
+        )
+    lines.append("")
+    lines.append("## Trigger Board")
+    for item in (payload.get("trigger_board") or {}).get("items") or []:
+        lines.append(
+            f"- `{item.get('trigger')}` status=`{item.get('status')}` "
+            f"thresholds=`{item.get('thresholds')}` last_reviewed_at=`{item.get('last_reviewed_at')}`"
+        )
+    if not ((payload.get("trigger_board") or {}).get("items") or []):
+        lines.append("- none")
+    lines.append("")
+    lines.append("## Convergence Snapshot")
+    if convergence:
+        lines.append(
+            f"- candidate_quality_trend=`{convergence.get('candidate_quality_trend')}` "
+            f"current=`{convergence.get('current_candidate_quality_rate')}` "
+            f"previous=`{convergence.get('previous_candidate_quality_rate')}`"
+        )
+        lines.append(
+            f"- proposal_yield=`{convergence.get('avg_proposal_yield')}` "
+            f"duplicate_skip_ratio=`{convergence.get('avg_duplicate_skip_ratio')}` "
+            f"clean_run_streak=`{convergence.get('clean_run_streak')}`"
+        )
+        lines.append(
+            f"- stable_candidate_count=`{convergence.get('stable_candidate_count')}` "
+            f"duplicate_ratio=`{convergence.get('duplicate_ratio')}` "
+            f"stability=`{convergence.get('stability')}`"
+        )
+    else:
+        lines.append("- none")
     lines.append("")
     lines.append("## Family Ranking")
     lines.append("| Family | Score | Near Miss | Mutation Improve | Robustness | Dead Penalty | Action |")

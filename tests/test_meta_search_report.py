@@ -129,6 +129,9 @@ def test_meta_search_report_builds_family_scores() -> None:
     assert bucket["family_score"] > 0.0
     assert bucket["near_miss_rate"] > 0.0
     assert bucket["recommended_action"] in {"CHEAP_ONLY", "CHEAP_MEDIUM", "EXPAND_CHEAP"}
+    assert payload["convergence_snapshot"]["candidate_quality_trend"] in {"flat", "improving", "worsening"}
+    assert payload["trigger_board"]["items"]
+    assert payload["trigger_board"]["items"][0]["trigger"] == "trigger_a"
 
     os.unlink(tmp.name)
 

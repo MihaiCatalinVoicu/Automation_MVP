@@ -32,6 +32,17 @@ Keep the current search surface small first:
 - universe: top `30`
 - target throughput: `40-80` experiments/day
 
+## Freeze Window
+
+During the current execution freeze:
+
+- no new families
+- no new orchestrator fronts
+- no portfolio-aware expansion
+- no promotion automation shortcuts
+
+Only work that proves convergence, runtime truth, baseline validity, cost reality, or forced verdicts should move.
+
 ## Required Services
 
 - `edge-search-manifest-worker.service`
@@ -61,6 +72,9 @@ Important defaults:
 - `RESEARCH_ELITE_COUNT=1`
 - `EDGE_SEARCH_TRIGGER_A_MIN_EXPERIMENTS=200`
 - `EDGE_SEARCH_TRIGGER_B_MIN_EXPERIMENTS=1000`
+- `EDGE_SEARCH_REQUIRE_MANUAL_PROMOTION=1`
+- `EDGE_SEARCH_SHADOW_ONLY_DAYS=30`
+- `EDGE_SEARCH_PROMOTION_MIN_DETAILS_CHARS=24`
 
 ## Path Setup
 
@@ -151,6 +165,18 @@ The current mode and Trigger A-E readiness are exported in:
 
 - `data/reports/meta_search_report_latest.json` under `live_edge_search`
 - `data/reports/live_edge_search_review_latest.json`
+- `data/reports/daily_ops_review_latest.json`
+- `data/reports/weekly_evidence_pack_latest.json`
+
+## Shadow-Only Promotion Policy
+
+For month 1, recommendations remain shadow-only:
+
+- `PROMOTE_TO_PAPER` must come from a manual source
+- promotion requires written rationale
+- promotion is blocked inside the configured shadow window
+
+This is enforced through `approval_service.py` and the environment flags above.
 
 ## Stop Conditions
 
@@ -219,6 +245,18 @@ journalctl -u edge-search-mutation-cycle.service -n 30 --no-pager
 ```bash
 cd ~/automation-mvp && . .venv/bin/activate
 python mutation_cycle.py --since-hours 72 --limit 5 --dry-run
+python daily_ops_review.py \
+  --automation-report data/reports/meta_search_report_latest.json \
+  --crypto-runtime-truth /root/crypto-bot-git/data/reports/runtime_truth_report_latest.json \
+  --crypto-baseline /root/crypto-bot-git/data/reports/btc_structural_baseline_latest.json \
+  --crypto-cost-gate /root/crypto-bot-git/data/reports/cost_sensitivity_latest.json \
+  --stocks-verdict /root/stocks-bot-git/data/reports/winner_verdict_scorecard_latest.json
+python weekly_evidence_pack.py \
+  --automation-report data/reports/meta_search_report_latest.json \
+  --crypto-runtime-truth /root/crypto-bot-git/data/reports/runtime_truth_report_latest.json \
+  --crypto-baseline /root/crypto-bot-git/data/reports/btc_structural_baseline_latest.json \
+  --crypto-cost-gate /root/crypto-bot-git/data/reports/cost_sensitivity_latest.json \
+  --stocks-verdict /root/stocks-bot-git/data/reports/winner_verdict_scorecard_latest.json
 sudo systemctl start edge-search-mutation-cycle.service
 ```
 
